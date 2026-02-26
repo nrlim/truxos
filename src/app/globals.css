@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  * {
+    @apply border-surface-200;
+  }
+
+  body {
+    @apply bg-surface-50 text-surface-900 font-sans antialiased;
+  }
+
+  ::selection {
+    @apply bg-brand-500/30 text-brand-900;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-400;
+  }
+
+  /* Touch action for mobile */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Smooth scroll */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+
+  /* ── Glassmorphism Cards ────────────────────────── */
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-surface-200/50 rounded-2xl shadow-sm;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:bg-white/90 hover:border-surface-300/50 hover:shadow-xl hover:shadow-brand-500/10;
+  }
+
+  /* ── Buttons ────────────────────────────────────── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-600 text-white font-semibold rounded-xl transition-all duration-200 hover:bg-brand-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:ring-offset-2 focus:ring-offset-surface-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 min-h-[48px] text-sm sm:text-base;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-surface-700 font-semibold rounded-xl border border-surface-200 transition-all duration-200 hover:bg-surface-50 hover:text-surface-900 active:scale-[0.98] shadow-sm focus:outline-none focus:ring-2 focus:ring-surface-200/50 focus:ring-offset-2 focus:ring-offset-surface-50 disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] text-sm sm:text-base;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-surface-600 font-medium rounded-xl transition-all duration-200 hover:bg-surface-100/50 hover:text-surface-900 focus:outline-none focus:ring-2 focus:ring-surface-200/30 min-h-[44px] text-sm;
+  }
+
+  /* ── Input Fields ───────────────────────────────── */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-surface-200 rounded-xl text-surface-900 placeholder:text-surface-400 transition-all duration-200 shadow-sm focus:outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20 focus:bg-white min-h-[48px] text-base;
+  }
+
+  .input-label {
+    @apply block text-sm font-medium text-surface-700 mb-1.5;
+  }
+
+  .input-error {
+    @apply text-xs text-accent-red mt-1;
+  }
+
+  /* ── Section Layout ─────────────────────────────── */
+  .section-container {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* ── Badge / Tag ────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase;
+  }
+
+  .badge-brand {
+    @apply badge bg-brand-50 text-brand-700 border border-brand-200;
+  }
+
+  .badge-success {
+    @apply badge bg-accent-emerald/10 text-emerald-700 border border-emerald-200;
+  }
+
+  /* ── Stat Card ──────────────────────────────────── */
+  .stat-value {
+    @apply text-2xl sm:text-3xl font-bold text-surface-900 font-mono tracking-tight;
+  }
+
+  .stat-label {
+    @apply text-xs sm:text-sm font-medium text-surface-500 uppercase tracking-wider;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-600 to-brand-400;
+  }
+
+  .text-gradient-warm {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-accent-amber to-accent-emerald;
+  }
+
+  .animate-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animate-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animate-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animate-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animate-delay-500 {
+    animation-delay: 500ms;
+  }
+}
