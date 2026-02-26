@@ -38,8 +38,5 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
-  },
-  "overrides": {
-    "balanced-match": "3.0.1"
   }
 }
