@@ -10,7 +10,7 @@ export async function PUT(
 ) {
     try {
         const body = await request.json();
-        const { fullName, username, password, role, tenantId } = body;
+        const { fullName, username, password, role, tenantId, driverId } = body;
 
         if (!fullName || !username || !role || !tenantId) {
             return NextResponse.json(
@@ -38,6 +38,7 @@ export async function PUT(
             fullName,
             username,
             role,
+            driverId: role === "DRIVER" ? (driverId || null) : null,
         };
 
         if (password) {

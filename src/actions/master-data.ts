@@ -12,17 +12,22 @@ import { revalidatePath } from "next/cache";
 // ========================
 // TOLL MASTER
 // ========================
-export async function getTolls(tenantId: string, page: number = 1, limit: number = 10) {
+export async function getTolls(tenantId: string, page: number = 1, limit: number = 10, categoryFilter?: string) {
     const skip = (page - 1) * limit;
+
+    const where: any = { tenantId };
+    if (categoryFilter && categoryFilter !== "ALL") {
+        where.category = categoryFilter;
+    }
 
     const [data, total] = await Promise.all([
         prisma.toll.findMany({
-            where: { tenantId },
+            where,
             orderBy: { createdAt: "desc" },
             skip,
             take: limit,
         }),
-        prisma.toll.count({ where: { tenantId } })
+        prisma.toll.count({ where })
     ]);
 
     return JSON.parse(JSON.stringify({
@@ -77,6 +82,96 @@ export async function deleteToll(id: string) {
         return { success: true };
     } catch (error: any) {
         return { error: error.message || "Failed to delete" };
+    }
+}
+
+// Detected toll from Overpass API
+interface DetectedToll {
+    name: string;
+    fee: number; // will be 0 from detection
+    category: string; // default GOL_1
+}
+
+/**
+ * Sync detected toll gates from route detection.
+ * - Finds existing tolls by name (case-insensitive)
+ * - Returns existing + creates new ones
+ * - Caller decides which to override via overrideIds
+ */
+export async function syncDetectedTolls(
+    tenantId: string,
+    detectedTolls: DetectedToll[],
+    overrideIds?: string[] // IDs of existing tolls to override (reset fee etc)
+) {
+    try {
+        const results: {
+            newTolls: any[];
+            existingTolls: any[];
+            allTollIds: string[];
+        } = {
+            newTolls: [],
+            existingTolls: [],
+            allTollIds: [],
+        };
+
+        // Get all existing tolls for this tenant
+        const existingAll = await prisma.toll.findMany({
+            where: { tenantId },
+        });
+
+        for (const detected of detectedTolls) {
+            // Case-insensitive name match
+            const existing = existingAll.find(
+                (t) => t.name.toLowerCase() === detected.name.toLowerCase()
+            );
+
+            if (existing) {
+                // Toll already exists
+                if (overrideIds && overrideIds.includes(existing.id)) {
+                    // Override: update the fee
+                    await prisma.toll.update({
+                        where: { id: existing.id },
+                        data: { fee: detected.fee },
+                    });
+                }
+                results.existingTolls.push(existing);
+                results.allTollIds.push(existing.id);
+            } else {
+                // Create new toll
+                const newToll = await prisma.toll.create({
+                    data: {
+                        name: detected.name,
+                        category: (detected.category as any) || "GOL_1",
+                        fee: detected.fee,
+                        tenantId,
+                    },
+                });
+                results.newTolls.push(newToll);
+                results.allTollIds.push(newToll.id);
+            }
+        }
+
+        revalidatePath("/dashboard/master-data/tarif-tol");
+        return JSON.parse(JSON.stringify({ success: true, ...results }));
+    } catch (error: any) {
+        return { error: error.message || "Failed to sync detected tolls" };
+    }
+}
+
+/**
+ * Check which detected toll names already exist in master data
+ */
+export async function checkExistingTolls(tenantId: string, names: string[]) {
+    try {
+        const existing = await prisma.toll.findMany({
+            where: {
+                tenantId,
+                name: { in: names, mode: "insensitive" },
+            },
+        });
+        return JSON.parse(JSON.stringify(existing));
+    } catch {
+        return [];
     }
 }
 
@@ -242,7 +337,10 @@ export async function deleteRoute(id: string) {
         revalidatePath("/dashboard/master-data/rute");
         return { success: true };
     } catch (error: any) {
-        return { error: error.message || "Failed to delete" };
+        if (error?.code === "P2003") {
+            return { error: "Rute ini tidak dapat dihapus karena sedang digunakan dalam Surat Jalan / Manifest aktif." };
+        }
+        return { error: error.message || "Gagal menghapus rute" };
     }
 }
 

@@ -77,13 +77,16 @@ export default function DashboardLayout({
     }
 
     const navigation = [
-        { name: "Dasbor", href: "/dashboard", icon: LayoutDashboard, current: pathname === "/dashboard" },
-        { name: "Surat Jalan", href: "/dashboard/surat-jalan", icon: FileText, current: pathname.startsWith("/dashboard/surat-jalan") },
-        { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
-        ...(user.role === "OWNER" || user.role === "ADMIN" ? [
-            { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" }
-        ] : []),
-        { name: "Pengaturan", href: "#", icon: Settings, current: false },
+        ...(user.role === "DRIVER" ? [
+            { name: "Tugas Aktif", href: "/dashboard/driver", icon: Truck, current: pathname === "/dashboard/driver" },
+        ] : [
+            { name: "Dasbor", href: "/dashboard", icon: LayoutDashboard, current: pathname === "/dashboard" },
+            { name: "Surat Jalan", href: "/dashboard/surat-jalan", icon: FileText, current: pathname.startsWith("/dashboard/surat-jalan") },
+            ...(user.role === "OWNER" || user.role === "ADMIN" ? [
+                { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
+                { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" }
+            ] : []),
+        ])
     ];
 
     return (

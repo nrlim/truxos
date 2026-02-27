@@ -37,7 +37,9 @@ export async function getManifests(tenantId: string, page: number = 1, limit: nu
             include: {
                 truck: true,
                 driver: true,
-                route: true,
+                route: {
+                    include: { tolls: true }
+                },
             },
             orderBy: { createdAt: "desc" },
             skip,
@@ -103,5 +105,97 @@ export async function createManifest(data: any, totalEstimatedCost: number) {
         return { success: true };
     } catch (error: any) {
         return { error: error.message || "Failed to create manifest" };
+    }
+}
+
+export async function approveManifest(manifestId: string, tenantId: string) {
+    try {
+        const manifest = await prisma.manifest.findUnique({
+            where: { id: manifestId, tenantId }
+        });
+
+        if (!manifest) return { error: "Manifest not found" };
+        if (manifest.status !== "PENDING") return { error: "Manifest is not pending" };
+
+        await prisma.$transaction([
+            prisma.manifest.update({
+                where: { id: manifestId },
+                data: { status: "EN_ROUTE" }
+            }),
+            prisma.driver.update({
+                where: { id: manifest.driverId },
+                data: { status: "ON_TRIP" }
+            })
+        ]);
+
+        revalidatePath("/dashboard/surat-jalan");
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message || "Failed to approve manifest" };
+    }
+}
+
+export async function rejectManifest(manifestId: string, tenantId: string) {
+    try {
+        const manifest = await prisma.manifest.findUnique({
+            where: { id: manifestId, tenantId }
+        });
+
+        if (!manifest) return { error: "Manifest not found" };
+
+        await prisma.manifest.update({
+            where: { id: manifestId },
+            data: { status: "REJECTED" }
+        });
+
+        revalidatePath("/dashboard/surat-jalan");
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message || "Failed to reject manifest" };
+    }
+}
+
+export async function completeManifest(manifestId: string, tenantId: string, newOdometer: number, expenses: any[] = []) {
+    try {
+        const manifest = await prisma.manifest.findUnique({
+            where: { id: manifestId, tenantId },
+            include: { truck: true, route: true }
+        });
+
+        if (!manifest) return { error: "Manifest not found" };
+        if (manifest.status !== "EN_ROUTE") return { error: "Manifest is not en route" };
+
+        const expensesData = expenses.map(e => ({
+            category: e.category,
+            amount: Number(e.amount),
+            notes: e.notes,
+            attachment: e.attachmentUrl || null,
+            tenantId
+        }));
+
+        await prisma.$transaction([
+            prisma.manifest.update({
+                where: { id: manifestId },
+                data: {
+                    status: "COMPLETED",
+                    expenses: {
+                        create: expensesData
+                    }
+                }
+            }),
+            prisma.driver.update({
+                where: { id: manifest.driverId },
+                data: { status: "AVAILABLE" }
+            }),
+            prisma.truck.update({
+                where: { id: manifest.truckId },
+                data: { currentOdometer: newOdometer }
+            })
+        ]);
+
+        revalidatePath("/dashboard/surat-jalan");
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message || "Failed to complete manifest" };
     }
 }

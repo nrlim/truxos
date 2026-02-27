@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
                 username: user.username,
                 fullName: user.fullName,
                 role: user.role,
+                driverId: user.driverId,
             },
             tenant: {
                 id: user.tenant.id,

@@ -26,6 +26,8 @@ export const truckSchema = z.object({
 export const routeSchema = z.object({
     origin: z.string().min(1, "Asal wajib diisi"),
     destination: z.string().min(1, "Tujuan wajib diisi"),
+    originCoords: z.string().optional().nullable(),
+    destinationCoords: z.string().optional().nullable(),
     baseDistanceKm: z.coerce.number().min(0.1, "Jarak harus lebih dari 0"),
     tollIds: z.array(z.string()).optional(),
     tenantId: z.string().min(1, "Tenant ID wajib ada"),

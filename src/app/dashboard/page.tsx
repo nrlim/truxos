@@ -99,7 +99,13 @@ export default function DashboardPage() {
             return;
         }
 
-        setUser(JSON.parse(userData));
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser.role === "DRIVER") {
+            router.push("/dashboard/driver");
+            return;
+        }
+
+        setUser(parsedUser);
         setTenant(JSON.parse(tenantData));
     }, [router]);
 

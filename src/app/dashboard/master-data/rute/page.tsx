@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Plus, Loader2, Trash2, Route as RouteIcon, MapPin, Ticket, Calculator, Edit2 } from "lucide-react";
+import { Plus, Loader2, Trash2, Route as RouteIcon, MapPin, Ticket, Calculator, Edit2, Navigation, ExternalLink } from "lucide-react";
+import { getGoogleMapsUrl } from "@/lib/maps";
 import { useNotification } from "@/components/ui/notification-provider";
 import { useModal } from "@/components/ui/modal-provider";
 import { routeSchema } from "@/lib/validations/master-data";
@@ -15,6 +16,9 @@ import {
     getAllTolls,
     updateRoute,
 } from "@/actions/master-data";
+
+import MapPicker from "@/components/MapPicker";
+import LocationSearchInput from "@/components/LocationSearchInput";
 
 // Simulasi Form Component (Enhanced Route Form)
 function EstimationSimulator({ route, onClose }: { route: any; onClose: () => void }) {
@@ -121,6 +125,8 @@ export default function RutePage() {
             baseDistanceKm: 0,
             tollIds: [],
             tenantId: "",
+            originCoords: "",
+            destinationCoords: "",
         },
     });
 
@@ -128,6 +134,16 @@ export default function RutePage() {
         control: form.control,
         name: "tollIds",
     }) || [];
+
+    const watchOriginCoords = useWatch({
+        control: form.control,
+        name: "originCoords",
+    });
+
+    const watchDestinationCoords = useWatch({
+        control: form.control,
+        name: "destinationCoords",
+    });
 
     useEffect(() => {
         fetchData(meta.page);
@@ -144,7 +160,7 @@ export default function RutePage() {
 
             const [resRoutes, resTolls] = await Promise.all([
                 getRoutes(tenant.id, page, 10),
-                getAllTolls(tenant.id) // Get all tolls for the dropdown
+                getAllTolls(tenant.id)
             ]);
 
             if (resRoutes && Array.isArray(resRoutes.data)) {
@@ -166,14 +182,9 @@ export default function RutePage() {
         setIsFormOpen(false);
         setEditingId(null);
 
-        // `tollIds` is handled cleanly by the backend payload spreading
         const payload = { ...values };
-
-        // Optimistic UI for Add/Update
         const optimisticId = editingId || `temp-${Date.now()}`;
         const previousData = [...data];
-
-        // Mock toll data for optimistic display based on selected IDs
         const mockTolls = (payload.tollIds || []).map(id => tolls.find(t => t.id === id)).filter(Boolean);
 
         if (editingId) {
@@ -190,7 +201,7 @@ export default function RutePage() {
 
         if (res.error) {
             notify.error(res.error);
-            setData(previousData); // Revert
+            setData(previousData);
             setIsFormOpen(true);
         } else {
             notify.success(editingId ? "Rute berhasil diperbarui" : "Rute berhasil ditambahkan");
@@ -213,6 +224,8 @@ export default function RutePage() {
             baseDistanceKm: Number(item.baseDistanceKm),
             tollIds: item.tolls ? item.tolls.map((t: any) => t.id) : [],
             tenantId: item.tenantId,
+            originCoords: item.originCoords || "",
+            destinationCoords: item.destinationCoords || "",
         });
         setIsFormOpen(true);
     }
@@ -272,31 +285,29 @@ export default function RutePage() {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-100 pb-4">
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">Asal</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input
-                                        {...form.register("origin")}
-                                        className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="e.g. JAKARTA"
-                                    />
-                                </div>
-                                {form.formState.errors.origin && <p className="text-xs text-red-500">{form.formState.errors.origin.message}</p>}
-                            </div>
+                            <LocationSearchInput
+                                label="Asal"
+                                value={form.watch("origin")}
+                                onChange={(val) => form.setValue("origin", val, { shouldValidate: true })}
+                                onSelectLocation={(loc) => {
+                                    form.setValue("origin", loc.name, { shouldValidate: true });
+                                    form.setValue("originCoords", JSON.stringify({ lat: loc.lat, lng: loc.lng }), { shouldValidate: true });
+                                }}
+                                placeholder="Cari kota asal..."
+                                error={form.formState.errors.origin?.message}
+                            />
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">Tujuan</label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input
-                                        {...form.register("destination")}
-                                        className="w-full border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="e.g. SURABAYA"
-                                    />
-                                </div>
-                                {form.formState.errors.destination && <p className="text-xs text-red-500">{form.formState.errors.destination.message}</p>}
-                            </div>
+                            <LocationSearchInput
+                                label="Tujuan"
+                                value={form.watch("destination")}
+                                onChange={(val) => form.setValue("destination", val, { shouldValidate: true })}
+                                onSelectLocation={(loc) => {
+                                    form.setValue("destination", loc.name, { shouldValidate: true });
+                                    form.setValue("destinationCoords", JSON.stringify({ lat: loc.lat, lng: loc.lng }), { shouldValidate: true });
+                                }}
+                                placeholder="Cari kota tujuan..."
+                                error={form.formState.errors.destination?.message}
+                            />
 
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-700">Jarak Dasar (KM)</label>
@@ -312,11 +323,29 @@ export default function RutePage() {
 
                         </div>
 
+                        <div className="py-4 border-b border-slate-100">
+                            <label className="text-sm font-medium text-slate-700 block mb-2">Pilih Koordinat Rute (Peta)</label>
+                            <MapPicker
+                                originCoords={watchOriginCoords}
+                                destinationCoords={watchDestinationCoords}
+                                onChangeOrigin={(val: string) => form.setValue("originCoords", val, { shouldValidate: true })}
+                                onChangeDestination={(val: string) => form.setValue("destinationCoords", val, { shouldValidate: true })}
+                                onDistanceCalculated={(dist: number) => {
+                                    if (!form.getValues("baseDistanceKm")) {
+                                        form.setValue("baseDistanceKm", dist, { shouldValidate: true });
+                                    }
+                                }}
+                            />
+                        </div>
+
                         <div className="pt-2">
                             <label className="text-sm font-medium text-slate-700 block mb-2">Link Tol (Bisa Pilih Banyak)</label>
                             <div className="border border-slate-300 rounded-lg p-2 max-h-[200px] overflow-y-auto bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                 {tolls.map((t) => (
-                                    <label key={t.id} className="flex items-start gap-3 p-2 hover:bg-slate-50 rounded cursor-pointer group border border-transparent hover:border-slate-200 transition">
+                                    <label key={t.id} className={`flex items-start gap-3 p-2 hover:bg-slate-50 rounded cursor-pointer group border transition ${selectedTollIds.includes(t.id)
+                                        ? "border-blue-200 bg-blue-50/50"
+                                        : "border-transparent hover:border-slate-200"
+                                        }`}>
                                         <input
                                             type="checkbox"
                                             value={t.id}
@@ -481,13 +510,28 @@ export default function RutePage() {
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={() => setSimulatingRoute(item)}
-                                    className="relative z-10 w-full bg-slate-50/80 backdrop-blur-sm hover:bg-blue-50 text-blue-600 font-bold py-3 text-sm flex justify-center items-center gap-2 border-t border-slate-100 transition-colors"
-                                >
-                                    <Calculator className="w-4 h-4" />
-                                    Simulasi Estimasi Rute
-                                </button>
+                                <div className="relative z-10 flex border-t border-slate-100">
+                                    <button
+                                        onClick={() => setSimulatingRoute(item)}
+                                        className="flex-1 bg-slate-50/80 backdrop-blur-sm hover:bg-blue-50 text-blue-600 font-bold py-3 text-sm flex justify-center items-center gap-2 transition-colors"
+                                    >
+                                        <Calculator className="w-4 h-4" />
+                                        Simulasi
+                                    </button>
+                                    {getGoogleMapsUrl(item.originCoords, item.destinationCoords) && (
+                                        <a
+                                            href={getGoogleMapsUrl(item.originCoords, item.destinationCoords)!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex-1 bg-slate-50/80 backdrop-blur-sm hover:bg-emerald-50 text-emerald-600 font-bold py-3 text-sm flex justify-center items-center gap-2 border-l border-slate-100 transition-colors"
+                                        >
+                                            <Navigation className="w-4 h-4" />
+                                            Google Maps
+                                            <ExternalLink className="w-3 h-3 opacity-50" />
+                                        </a>
+                                    )}
+                                </div>
 
                             </div>
                         ))}

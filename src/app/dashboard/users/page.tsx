@@ -23,6 +23,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import clsx from "clsx";
+import { getAllDrivers } from "@/actions/master-data";
 
 interface UserData {
     id: string;
@@ -30,6 +31,7 @@ interface UserData {
     fullName: string;
     role: string;
     tenantId: string;
+    driverId?: string | null;
 }
 
 interface TenantData {
@@ -42,7 +44,8 @@ const userSchema = z.object({
     fullName: z.string().min(2, "Nama Lengkap minimal 2 karakter"),
     username: z.string().min(4, "Username minimal 4 karakter"),
     password: z.string().optional(),
-    role: z.enum(["OWNER", "ADMIN", "STAFF"]),
+    role: z.enum(["OWNER", "ADMIN", "STAFF", "DRIVER"]),
+    driverId: z.string().optional().nullable(),
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -57,6 +60,7 @@ export default function UsersPage() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [availableDrivers, setAvailableDrivers] = useState<any[]>([]);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
@@ -70,11 +74,13 @@ export default function UsersPage() {
         handleSubmit,
         reset,
         setValue,
+        watch,
         formState: { errors },
     } = useForm<UserFormValues>({
         resolver: zodResolver(userSchema),
         defaultValues: {
             role: "STAFF",
+            driverId: null,
         },
     });
 
@@ -101,6 +107,7 @@ export default function UsersPage() {
             setCurrentUser(userData);
             setTenant(tenantData);
             fetchUsers(tenantData.id);
+            getAllDrivers(tenantData.id).then(setAvailableDrivers).catch(console.error);
         };
 
         init();
@@ -139,7 +146,7 @@ export default function UsersPage() {
 
     const openModalForAdd = () => {
         setEditingUser(null);
-        reset({ fullName: "", username: "", password: "", role: "STAFF" });
+        reset({ fullName: "", username: "", password: "", role: "STAFF", driverId: null });
         setIsModalOpen(true);
     };
 
@@ -149,6 +156,7 @@ export default function UsersPage() {
             fullName: user.fullName,
             username: user.username,
             role: user.role as any,
+            driverId: user.driverId || null,
             password: "", // Jangan isi password saat edit
         });
         setIsModalOpen(true);
@@ -253,6 +261,10 @@ export default function UsersPage() {
             case "ADMIN":
                 styles = "bg-blue-100 text-blue-800 border-blue-200";
                 icon = <UserCog className="w-3 h-3 mr-1" />;
+                break;
+            case "DRIVER":
+                styles = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                icon = <Truck className="w-3 h-3 mr-1" />;
                 break;
             default:
                 styles = "bg-slate-100 text-slate-700 border-slate-200";
@@ -526,9 +538,44 @@ export default function UsersPage() {
                                             </span>
                                             <ShieldAlert className="h-5 w-5 text-slate-400 has-[:checked]:text-amber-600" aria-hidden="true" />
                                         </label>
+
+                                        <label className={clsx(
+                                            "relative flex cursor-pointer rounded-lg border p-4 shadow-sm focus:outline-none",
+                                            "has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50",
+                                            "border-slate-200 bg-white hover:bg-slate-50"
+                                        )}>
+                                            <input type="radio" value="DRIVER" {...register("role")} className="sr-only" />
+                                            <span className="flex flex-1">
+                                                <span className="flex flex-col">
+                                                    <span className="block text-sm font-medium text-slate-900">Supir (Driver)</span>
+                                                    <span className="mt-1 flex items-center text-xs text-slate-500">Akses ke aplikasi driver dengan tugas khusus.</span>
+                                                </span>
+                                            </span>
+                                            <Truck className="h-5 w-5 text-slate-400 has-[:checked]:text-emerald-600" aria-hidden="true" />
+                                        </label>
                                     </div>
                                     {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role.message}</p>}
                                 </div>
+
+                                {watch("role") === "DRIVER" && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Pilih Data Supir</label>
+                                        <select
+                                            {...register("driverId")}
+                                            className={clsx(
+                                                "w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-colors",
+                                                errors.driverId ? "border-red-300 focus:ring-red-500" : "border-slate-200"
+                                            )}
+                                        >
+                                            <option value="">-- Pilih Supir --</option>
+                                            {availableDrivers.map(d => (
+                                                <option key={d.id} value={d.id}>{d.fullName}</option>
+                                            ))}
+                                        </select>
+                                        {errors.driverId && <p className="text-red-500 text-xs mt-1">{errors.driverId.message}</p>}
+                                        <p className="text-[11px] text-slate-400 mt-1">Data supir yang akan dihubungkan dengan akun ini.</p>
+                                    </div>
+                                )}
 
                             </form>
                         </div>

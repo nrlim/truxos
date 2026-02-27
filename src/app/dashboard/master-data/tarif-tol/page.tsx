@@ -25,6 +25,7 @@ export default function TarifTolPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [categoryFilter, setCategoryFilter] = useState("ALL");
 
     const form = useForm<z.infer<typeof tollSchema>>({
         resolver: zodResolver(tollSchema) as any,
@@ -38,7 +39,7 @@ export default function TarifTolPage() {
 
     useEffect(() => {
         fetchData(meta.page);
-    }, [meta.page]);
+    }, [meta.page, categoryFilter]);
 
     async function fetchData(page: number = 1) {
         try {
@@ -48,7 +49,7 @@ export default function TarifTolPage() {
             const tenant = JSON.parse(tenantStr);
 
             form.setValue("tenantId", tenant.id);
-            const res = await getTolls(tenant.id, page, 10);
+            const res = await getTolls(tenant.id, page, 10, categoryFilter);
             if (res && Array.isArray(res.data)) {
                 setData(res.data);
                 setMeta(res.meta);
@@ -130,7 +131,7 @@ export default function TarifTolPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h2 className="text-xl font-bold text-slate-900">Daftar Tarif Tol</h2>
                 <button
                     onClick={() => {
@@ -237,73 +238,99 @@ export default function TarifTolPage() {
                         ))}
                     </div>
                 </div>
-            ) : data.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
-                    <p className="text-slate-500">Belum ada data Tarif Tol.</p>
-                </div>
             ) : (
-                <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {data.map((item) => (
-                            <div key={item.id} className="relative bg-gradient-to-br from-white to-slate-100 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between group hover:border-blue-300 hover:shadow-md transition-all duration-300 overflow-hidden">
-                                {/* Background Watermark */}
-                                <Ticket className="absolute -bottom-4 -right-4 w-32 h-32 text-blue-600 opacity-5 z-0 transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-700 pointer-events-none" />
-
-                                <div className="relative z-10 p-5 flex flex-col justify-between h-full">
-                                    <div>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-bold text-slate-800 text-lg line-clamp-2">{item.name}</h3>
-                                            <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-2 py-1 rounded">
-                                                {item.category.replace("_", " ")}
-                                            </span>
-                                        </div>
-                                        <p className="text-xl font-bold text-blue-600 mt-4">
-                                            Rp {Number(item.fee).toLocaleString("id-ID")}
-                                        </p>
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => handleEdit(item)}
-                                            className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition"
-                                            title="Ubah"
-                                        >
-                                            <Edit2 className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(item.id)}
-                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition"
-                                            title="Hapus"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                <>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-slate-200">
+                        {["ALL", ...Object.values(TollCategory)].map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => {
+                                    setCategoryFilter(cat);
+                                    setMeta(prev => ({ ...prev, page: 1 }));
+                                }}
+                                className={`px-4 py-2.5 text-sm font-bold whitespace-nowrap border-b-2 transition-colors ${categoryFilter === cat
+                                    ? "border-blue-600 text-blue-600"
+                                    : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                                    }`}
+                            >
+                                {cat === "ALL" ? "Semua Golongan" : cat.replace("_", " ")}
+                            </button>
                         ))}
                     </div>
 
-                    {meta.totalPages > 1 && (
-                        <div className="flex justify-center items-center gap-2 pt-4">
-                            <button
-                                onClick={() => setMeta((prev) => ({ ...prev, page: prev.page - 1 }))}
-                                disabled={meta.page === 1}
-                                className="px-3 py-1 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition"
-                            >
-                                Prev
-                            </button>
-                            <span className="text-sm font-medium text-slate-600">
-                                Page {meta.page} of {meta.totalPages}
-                            </span>
-                            <button
-                                onClick={() => setMeta((prev) => ({ ...prev, page: prev.page + 1 }))}
-                                disabled={meta.page === meta.totalPages}
-                                className="px-3 py-1 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition"
-                            >
-                                Next
-                            </button>
+                    {data.length === 0 ? (
+                        <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+                            <p className="text-slate-500">Belum ada data Tarif Tol.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                <ul className="divide-y divide-slate-100">
+                                    {data.map((item: any) => (
+                                        <li key={item.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors group relative before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-blue-500 before:opacity-0 hover:before:opacity-100 before:transition-opacity overflow-hidden">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                                                    <Ticket className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-900 text-[15px]">{item.name}</h4>
+                                                    <p className="text-[13px] font-medium text-slate-500 mt-0.5">
+                                                        Kategori Kendaraan {item.category.replace("_", " ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-auto w-full mt-2 sm:mt-0">
+                                                <div className="text-left sm:text-right">
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Tarif Dasar</p>
+                                                    <p className="font-bold text-slate-900 text-[15px]">Rp {Number(item.fee).toLocaleString("id-ID")}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => handleEdit(item)}
+                                                        className="w-9 h-9 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors shadow-sm"
+                                                        title="Ubah"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(item.id)}
+                                                        className="w-9 h-9 rounded-lg flex items-center justify-center bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors shadow-sm"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            {meta.totalPages > 1 && (
+                                <div className="flex justify-center items-center gap-2 pt-4">
+                                    <button
+                                        onClick={() => setMeta((prev) => ({ ...prev, page: prev.page - 1 }))}
+                                        disabled={meta.page === 1}
+                                        className="px-3 py-1 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition"
+                                    >
+                                        Prev
+                                    </button>
+                                    <span className="text-sm font-medium text-slate-600">
+                                        Page {meta.page} of {meta.totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setMeta((prev) => ({ ...prev, page: prev.page + 1 }))}
+                                        disabled={meta.page === meta.totalPages}
+                                        className="px-3 py-1 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 disabled:opacity-50 hover:bg-slate-50 transition"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
-                </div>
+                </>
             )}
         </div>
     );

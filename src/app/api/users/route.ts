@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { fullName, username, password, role, tenantId } = body;
+        const { fullName, username, password, role, tenantId, driverId } = body;
 
         if (!fullName || !username || !password || !role || !tenantId) {
             return NextResponse.json(
@@ -78,6 +78,7 @@ export async function POST(request: Request) {
                 password: hashedPassword,
                 role,
                 tenantId,
+                driverId: role === "DRIVER" ? (driverId || null) : null,
             },
             select: {
                 id: true,
