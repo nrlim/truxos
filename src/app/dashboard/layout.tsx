@@ -76,6 +76,7 @@ export default function DashboardLayout({
 
     const navigation = [
         { name: "Dasbor", href: "/dashboard", icon: LayoutDashboard, current: pathname === "/dashboard" },
+        { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
         ...(user.role === "OWNER" || user.role === "ADMIN" ? [
             { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" }
         ] : []),
