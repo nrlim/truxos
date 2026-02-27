@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Loader2, Trash2, Fuel, Gauge, Hash, Truck, Edit2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { useNotification } from "@/components/ui/notification-provider";
+import { useModal } from "@/components/ui/modal-provider";
 import { truckSchema } from "@/lib/validations/master-data";
 import {
     getTrucks,
@@ -16,6 +17,8 @@ import {
 import { TruckType, FuelType } from "@prisma/client";
 
 export default function ArmadaPage() {
+    const notify = useNotification();
+    const modal = useModal();
     const [data, setData] = useState<any[]>([]);
     const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
     const [loading, setLoading] = useState(true);
@@ -53,7 +56,7 @@ export default function ArmadaPage() {
                 setMeta(res.meta);
             }
         } catch (e) {
-            toast.error("Gagal memuat data armada");
+            notify.error("Gagal memuat data armada");
         } finally {
             setLoading(false);
         }
@@ -61,23 +64,36 @@ export default function ArmadaPage() {
 
     async function onSubmit(values: z.infer<typeof truckSchema>) {
         setIsSubmitting(true);
+        setIsFormOpen(false);
+        setEditingId(null);
+
+        // Optimistic UI for Add/Update
+        const optimisticId = editingId || `temp-${Date.now()}`;
+        const previousData = [...data];
+        if (editingId) {
+            setData(data.map(item => item.id === editingId ? { ...item, ...values } : item));
+        } else {
+            setData([{ id: optimisticId, ...values }, ...data]);
+        }
+
         const res = editingId
             ? await updateTruck(editingId, values)
             : await createTruck(values);
+
         setIsSubmitting(false);
 
         if (res.error) {
-            toast.error(res.error);
+            notify.error(res.error);
+            setData(previousData); // Revert on error
+            setIsFormOpen(true);
         } else {
-            toast.success(editingId ? "Armada berhasil diperbarui" : "Armada berhasil ditambahkan");
+            notify.success(editingId ? "Armada berhasil diperbarui" : "Armada berhasil ditambahkan");
             form.reset({
                 ...values,
                 licensePlate: "",
                 fuelRatio: 0,
                 currentOdometer: 0
             });
-            setIsFormOpen(false);
-            setEditingId(null);
             fetchData(meta.page);
         }
     }
@@ -95,15 +111,30 @@ export default function ArmadaPage() {
         setIsFormOpen(true);
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Hapus armada ini?")) return;
-        const res = await deleteTruck(id);
-        if (res.error) {
-            toast.error(res.error);
-        } else {
-            toast.success("Armada dihapus");
-            fetchData();
-        }
+    function handleDelete(id: string) {
+        modal.confirm({
+            title: "Konfirmasi Penghapusan",
+            message: "Data armada yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin melanjutkan?",
+            confirmLabel: "Hapus",
+            variant: "danger",
+            onConfirm: async () => {
+                const previousData = [...data];
+                setData(data.filter(item => item.id !== id));
+
+                const res = await deleteTruck(id);
+                if (res.error) {
+                    notify.error(res.error);
+                    setData(previousData);
+                } else {
+                    notify.success("Armada berhasil dihapus");
+                    if (data.length === 1 && meta.page > 1) {
+                        setMeta(prev => ({ ...prev, page: prev.page - 1 }));
+                    } else {
+                        fetchData(meta.page);
+                    }
+                }
+            },
+        });
     }
 
     return (

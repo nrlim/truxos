@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Loader2, Trash2, Phone, Indent, BadgeDollarSign, Edit2, Users } from "lucide-react";
-import toast from "react-hot-toast";
+import { useNotification } from "@/components/ui/notification-provider";
+import { useModal } from "@/components/ui/modal-provider";
 import { driverSchema } from "@/lib/validations/master-data";
 import {
     getDrivers,
@@ -17,6 +18,8 @@ import { DriverStatus } from "@prisma/client";
 import clsx from "clsx";
 
 export default function SupirPage() {
+    const notify = useNotification();
+    const modal = useModal();
     const [data, setData] = useState<any[]>([]);
     const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
     const [loading, setLoading] = useState(true);
@@ -54,7 +57,7 @@ export default function SupirPage() {
                 setMeta(res.meta);
             }
         } catch (e) {
-            toast.error("Gagal memuat data supir");
+            notify.error("Gagal memuat data supir");
         } finally {
             setLoading(false);
         }
@@ -62,15 +65,30 @@ export default function SupirPage() {
 
     async function onSubmit(values: z.infer<typeof driverSchema>) {
         setIsSubmitting(true);
+        setIsFormOpen(false);
+        setEditingId(null);
+
+        // Optimistic UI for Add/Update
+        const optimisticId = editingId || `temp-${Date.now()}`;
+        const previousData = [...data];
+        if (editingId) {
+            setData(data.map(item => item.id === editingId ? { ...item, ...values } : item));
+        } else {
+            setData([{ id: optimisticId, ...values }, ...data]);
+        }
+
         const res = editingId
             ? await updateDriver(editingId, values)
             : await createDriver(values);
+
         setIsSubmitting(false);
 
         if (res.error) {
-            toast.error(res.error);
+            notify.error(res.error);
+            setData(previousData); // Revert on error
+            setIsFormOpen(true);
         } else {
-            toast.success(editingId ? "Supir berhasil diperbarui" : "Supir berhasil ditambahkan");
+            notify.success(editingId ? "Supir berhasil diperbarui" : "Supir berhasil ditambahkan");
             form.reset({
                 ...values,
                 fullName: "",
@@ -78,8 +96,6 @@ export default function SupirPage() {
                 licenseNumber: "",
                 dailyAllowance: 0
             });
-            setIsFormOpen(false);
-            setEditingId(null);
             fetchData(meta.page);
         }
     }
@@ -97,15 +113,30 @@ export default function SupirPage() {
         setIsFormOpen(true);
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Hapus supir ini?")) return;
-        const res = await deleteDriver(id);
-        if (res.error) {
-            toast.error(res.error);
-        } else {
-            toast.success("Supir dihapus");
-            fetchData();
-        }
+    function handleDelete(id: string) {
+        modal.confirm({
+            title: "Konfirmasi Penghapusan",
+            message: "Data supir yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin melanjutkan?",
+            confirmLabel: "Hapus",
+            variant: "danger",
+            onConfirm: async () => {
+                const previousData = [...data];
+                setData(data.filter(item => item.id !== id));
+
+                const res = await deleteDriver(id);
+                if (res.error) {
+                    notify.error(res.error);
+                    setData(previousData);
+                } else {
+                    notify.success("Supir berhasil dihapus");
+                    if (data.length === 1 && meta.page > 1) {
+                        setMeta(prev => ({ ...prev, page: prev.page - 1 }));
+                    } else {
+                        fetchData(meta.page);
+                    }
+                }
+            },
+        });
     }
 
     return (
@@ -229,8 +260,29 @@ export default function SupirPage() {
             )}
 
             {loading ? (
-                <div className="flex justify-center p-8">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm h-[180px]">
+                                <div className="p-5 flex flex-col justify-between h-full">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full bg-slate-200 animate-pulse" />
+                                            <div className="space-y-2">
+                                                <div className="w-32 h-4 bg-slate-200 rounded animate-pulse" />
+                                                <div className="w-20 h-4 bg-slate-100 rounded-full animate-pulse" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-3 border-t border-slate-100">
+                                        <div className="w-40 h-3 bg-slate-100 rounded animate-pulse" />
+                                        <div className="w-32 h-3 bg-slate-100 rounded animate-pulse" />
+                                        <div className="w-24 h-4 bg-slate-200 rounded animate-pulse" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : data.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-slate-200">

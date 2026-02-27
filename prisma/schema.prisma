@@ -43,6 +43,12 @@ enum TollCategory {
   GOL_5
 }
 
+enum ManifestStatus {
+  PENDING
+  EN_ROUTE
+  COMPLETED
+}
+
 model Tenant {
   id   String @id @default(cuid())
   name String
@@ -53,6 +59,7 @@ model Tenant {
   trucks  Truck[]
   routes  Route[]
   drivers Driver[]
+  manifests Manifest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,6 +113,8 @@ model Truck {
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  manifests Manifest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -123,6 +132,8 @@ model Route {
 
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  manifests Manifest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -142,9 +153,39 @@ model Driver {
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  manifests Manifest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
   @@map("drivers")
+}
+
+model Manifest {
+  id                   String         @id @default(cuid())
+  manifestNumber       String         @unique @map("manifest_number")
+  status               ManifestStatus @default(PENDING)
+
+  truckId              String         @map("truck_id")
+  truck                Truck          @relation(fields: [truckId], references: [id])
+
+  driverId             String         @map("driver_id")
+  driver               Driver         @relation(fields: [driverId], references: [id])
+
+  routeId              String         @map("route_id")
+  route                Route          @relation(fields: [routeId], references: [id])
+
+  additionalDistanceKm Float          @default(0) @map("additional_distance_km")
+  totalEstimatedCost   Decimal        @db.Decimal(12, 2) @map("total_estimated_cost")
+  departureDate        DateTime       @map("departure_date")
+
+  tenantId             String         @map("tenant_id")
+  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([tenantId])
+  @@map("manifests")
 }

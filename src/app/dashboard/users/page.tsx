@@ -16,7 +16,8 @@ import {
     X,
     UserCog
 } from "lucide-react";
-import toast from "react-hot-toast";
+import { useNotification } from "@/components/ui/notification-provider";
+import { useModal } from "@/components/ui/modal-provider";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,6 +49,8 @@ type UserFormValues = z.infer<typeof userSchema>;
 
 export default function UsersPage() {
     const router = useRouter();
+    const notify = useNotification();
+    const modal = useModal();
     const [currentUser, setCurrentUser] = useState<UserData | null>(null);
     const [tenant, setTenant] = useState<TenantData | null>(null);
 
@@ -90,7 +93,7 @@ export default function UsersPage() {
             const tenantData = JSON.parse(tenantDataStr);
 
             if (userData.role !== "OWNER" && userData.role !== "ADMIN") {
-                toast.error("Anda tidak memiliki akses ke halaman ini");
+                notify.error("Anda tidak memiliki akses ke halaman ini");
                 router.push("/dashboard");
                 return;
             }
@@ -112,7 +115,7 @@ export default function UsersPage() {
             setUsers(data.users || []);
         } catch (error) {
             console.error(error);
-            toast.error("Gagal mengambil data pengguna");
+            notify.error("Gagal mengambil data pengguna");
         } finally {
             setIsLoading(false);
         }
@@ -177,7 +180,7 @@ export default function UsersPage() {
                     const err = await res.json();
                     throw new Error(err.error || "Gagal memperbarui pengguna");
                 }
-                toast.success("Pengguna berhasil diperbarui");
+                notify.success("Pengguna berhasil diperbarui");
             } else {
                 // CREATE
                 if (!data.password || data.password.length < 6) {
@@ -193,27 +196,31 @@ export default function UsersPage() {
                     const err = await res.json();
                     throw new Error(err.error || "Gagal menambahkan pengguna");
                 }
-                toast.success("Pengguna berhasil ditambahkan");
+                notify.success("Pengguna berhasil ditambahkan");
             }
 
             closeAndResetModal();
             fetchUsers(tenant.id);
         } catch (error: any) {
-            toast.error(error.message);
+            notify.error(error.message);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleDelete = async (id: string, name: string) => {
+    const handleDelete = (id: string, name: string) => {
         if (!tenant || !currentUser) return;
         if (id === currentUser.id) {
-            toast.error("Anda tidak dapat menghapus akun Anda sendiri");
+            notify.error("Anda tidak dapat menghapus akun Anda sendiri");
             return;
         }
 
-        if (confirm(`Apakah Anda yakin ingin menghapus pengguna '${name}'?`)) {
-            try {
+        modal.confirm({
+            title: "Konfirmasi Penghapusan Pengguna",
+            message: `Pengguna '${name}' akan dihapus secara permanen dari organisasi. Tindakan ini tidak dapat dibatalkan.`,
+            confirmLabel: "Hapus Pengguna",
+            variant: "danger",
+            onConfirm: async () => {
                 const res = await fetch(`/api/users/${id}?tenantId=${tenant.id}`, {
                     method: "DELETE",
                 });
@@ -221,12 +228,10 @@ export default function UsersPage() {
                     const err = await res.json();
                     throw new Error(err.error || "Gagal menghapus pengguna");
                 }
-                toast.success("Pengguna berhasil dihapus");
+                notify.success("Pengguna berhasil dihapus");
                 fetchUsers(tenant.id);
-            } catch (error: any) {
-                toast.error(error.message);
-            }
-        }
+            },
+        });
     };
 
     if (!currentUser || !tenant) {

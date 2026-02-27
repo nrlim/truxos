@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Toaster } from "react-hot-toast";
+import { NotificationProvider } from "@/components/ui/notification-provider";
+import { ModalProvider } from "@/components/ui/modal-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,9 +31,13 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className="min-h-screen bg-surface-50">
-        {children}
-        <Toaster position="top-right" />
+        <NotificationProvider>
+          <ModalProvider>
+            {children}
+          </ModalProvider>
+        </NotificationProvider>
       </body>
     </html>
   );
 }
+

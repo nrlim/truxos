@@ -140,4 +140,10 @@
   .animate-delay-500 {
     animation-delay: 500ms;
   }
+
+  /* Fast page/tab transition fade */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 }

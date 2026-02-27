@@ -5,7 +5,8 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Loader2, Trash2, Route as RouteIcon, MapPin, Ticket, Calculator, Edit2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { useNotification } from "@/components/ui/notification-provider";
+import { useModal } from "@/components/ui/modal-provider";
 import { routeSchema } from "@/lib/validations/master-data";
 import {
     getRoutes,
@@ -101,6 +102,8 @@ function EstimationSimulator({ route, onClose }: { route: any; onClose: () => vo
 }
 
 export default function RutePage() {
+    const notify = useNotification();
+    const modal = useModal();
     const [data, setData] = useState<any[]>([]);
     const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
     const [tolls, setTolls] = useState<any[]>([]);
@@ -152,7 +155,7 @@ export default function RutePage() {
                 setTolls(resTolls);
             }
         } catch (e) {
-            toast.error("Gagal memuat data rute");
+            notify.error("Gagal memuat data rute");
         } finally {
             setLoading(false);
         }
@@ -160,18 +163,37 @@ export default function RutePage() {
 
     async function onSubmit(values: z.infer<typeof routeSchema>) {
         setIsSubmitting(true);
+        setIsFormOpen(false);
+        setEditingId(null);
+
         // `tollIds` is handled cleanly by the backend payload spreading
         const payload = { ...values };
+
+        // Optimistic UI for Add/Update
+        const optimisticId = editingId || `temp-${Date.now()}`;
+        const previousData = [...data];
+
+        // Mock toll data for optimistic display based on selected IDs
+        const mockTolls = (payload.tollIds || []).map(id => tolls.find(t => t.id === id)).filter(Boolean);
+
+        if (editingId) {
+            setData(data.map(item => item.id === editingId ? { ...item, ...payload, tolls: mockTolls } : item));
+        } else {
+            setData([{ id: optimisticId, ...payload, tolls: mockTolls }, ...data]);
+        }
 
         const res = editingId
             ? await updateRoute(editingId, payload)
             : await createRoute(payload);
+
         setIsSubmitting(false);
 
         if (res.error) {
-            toast.error(res.error);
+            notify.error(res.error);
+            setData(previousData); // Revert
+            setIsFormOpen(true);
         } else {
-            toast.success(editingId ? "Rute berhasil diperbarui" : "Rute berhasil ditambahkan");
+            notify.success(editingId ? "Rute berhasil diperbarui" : "Rute berhasil ditambahkan");
             form.reset({
                 ...values,
                 origin: "",
@@ -179,8 +201,6 @@ export default function RutePage() {
                 baseDistanceKm: 0,
                 tollIds: []
             });
-            setIsFormOpen(false);
-            setEditingId(null);
             fetchData(meta.page);
         }
     }
@@ -197,15 +217,30 @@ export default function RutePage() {
         setIsFormOpen(true);
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Hapus rute ini?")) return;
-        const res = await deleteRoute(id);
-        if (res.error) {
-            toast.error(res.error);
-        } else {
-            toast.success("Rute dihapus");
-            fetchData();
-        }
+    function handleDelete(id: string) {
+        modal.confirm({
+            title: "Konfirmasi Penghapusan",
+            message: "Data rute yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin melanjutkan?",
+            confirmLabel: "Hapus",
+            variant: "danger",
+            onConfirm: async () => {
+                const previousData = [...data];
+                setData(data.filter(item => item.id !== id));
+
+                const res = await deleteRoute(id);
+                if (res.error) {
+                    notify.error(res.error);
+                    setData(previousData);
+                } else {
+                    notify.success("Rute berhasil dihapus");
+                    if (data.length === 1 && meta.page > 1) {
+                        setMeta(prev => ({ ...prev, page: prev.page - 1 }));
+                    } else {
+                        fetchData(meta.page);
+                    }
+                }
+            },
+        });
     }
 
     const activeTollFee = selectedTollIds.reduce((acc: number, id: string) => {
@@ -344,8 +379,39 @@ export default function RutePage() {
             )}
 
             {loading ? (
-                <div className="flex justify-center p-8">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col justify-between shadow-sm h-[220px]">
+                                <div className="p-5 flex-1">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-4 w-full">
+                                            <div className="flex flex-col items-center opacity-50">
+                                                <div className="w-3 h-3 rounded-full bg-slate-300"></div>
+                                                <div className="w-0.5 h-6 bg-slate-200 my-1"></div>
+                                                <div className="w-3 h-3 rounded-full border-2 border-slate-300"></div>
+                                            </div>
+                                            <div className="flex flex-col gap-5 w-full">
+                                                <div className="w-32 h-5 bg-slate-200 rounded animate-pulse" />
+                                                <div className="w-40 h-5 bg-slate-200 rounded animate-pulse" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-slate-100">
+                                        <div className="space-y-2">
+                                            <div className="w-20 h-3 bg-slate-100 rounded animate-pulse" />
+                                            <div className="w-24 h-5 bg-slate-200 rounded animate-pulse" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="w-24 h-3 bg-slate-100 rounded animate-pulse" />
+                                            <div className="w-28 h-4 bg-slate-200 rounded animate-pulse" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="w-full h-10 bg-slate-50 border-t border-slate-100 animate-pulse" />
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : data.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-slate-200">

@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Plus, Loader2, Trash2, Edit2, Ticket } from "lucide-react";
-import toast from "react-hot-toast";
+import { useNotification } from "@/components/ui/notification-provider";
+import { useModal } from "@/components/ui/modal-provider";
 import { tollSchema } from "@/lib/validations/master-data";
 import {
     getTolls,
@@ -16,6 +17,8 @@ import {
 import { TollCategory } from "@prisma/client";
 
 export default function TarifTolPage() {
+    const notify = useNotification();
+    const modal = useModal();
     const [data, setData] = useState<any[]>([]);
     const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1 });
     const [loading, setLoading] = useState(true);
@@ -51,7 +54,7 @@ export default function TarifTolPage() {
                 setMeta(res.meta);
             }
         } catch (e) {
-            toast.error("Gagal memuat data tol");
+            notify.error("Gagal memuat data tol");
         } finally {
             setLoading(false);
         }
@@ -59,18 +62,31 @@ export default function TarifTolPage() {
 
     async function onSubmit(values: z.infer<typeof tollSchema>) {
         setIsSubmitting(true);
+        setIsFormOpen(false);
+        setEditingId(null);
+
+        // Optimistic UI for Add/Update
+        const optimisticId = editingId || `temp-${Date.now()}`;
+        const previousData = [...data];
+        if (editingId) {
+            setData(data.map(item => item.id === editingId ? { ...item, ...values } : item));
+        } else {
+            setData([{ id: optimisticId, ...values }, ...data]);
+        }
+
         const res = editingId
             ? await updateToll(editingId, values)
             : await createToll(values);
+
         setIsSubmitting(false);
 
         if (res.error) {
-            toast.error(res.error);
+            notify.error(res.error);
+            setData(previousData); // Revert on error
+            setIsFormOpen(true);
         } else {
-            toast.success(editingId ? "Tarif tol berhasil diperbarui" : "Tarif tol berhasil ditambahkan");
+            notify.success(editingId ? "Tarif tol berhasil diperbarui" : "Tarif tol berhasil ditambahkan");
             form.reset({ ...values, name: "", fee: 0 });
-            setIsFormOpen(false);
-            setEditingId(null);
             fetchData(meta.page);
         }
     }
@@ -86,15 +102,30 @@ export default function TarifTolPage() {
         setIsFormOpen(true);
     }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Hapus data ini?")) return;
-        const res = await deleteToll(id);
-        if (res.error) {
-            toast.error(res.error);
-        } else {
-            toast.success("Data dhihapus");
-            fetchData();
-        }
+    function handleDelete(id: string) {
+        modal.confirm({
+            title: "Konfirmasi Penghapusan",
+            message: "Data tarif tol yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin melanjutkan?",
+            confirmLabel: "Hapus",
+            variant: "danger",
+            onConfirm: async () => {
+                const previousData = [...data];
+                setData(data.filter(item => item.id !== id));
+
+                const res = await deleteToll(id);
+                if (res.error) {
+                    notify.error(res.error);
+                    setData(previousData);
+                } else {
+                    notify.success("Tarif tol berhasil dihapus");
+                    if (data.length === 1 && meta.page > 1) {
+                        setMeta(prev => ({ ...prev, page: prev.page - 1 }));
+                    } else {
+                        fetchData(meta.page);
+                    }
+                }
+            },
+        });
     }
 
     return (
@@ -191,8 +222,20 @@ export default function TarifTolPage() {
             )}
 
             {loading ? (
-                <div className="flex justify-center p-8">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm h-[140px] p-5 flex flex-col justify-between">
+                                <div>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="w-32 h-6 bg-slate-200 rounded animate-pulse" />
+                                        <div className="w-16 h-5 bg-slate-100 rounded animate-pulse" />
+                                    </div>
+                                    <div className="w-24 h-7 bg-slate-200 rounded animate-pulse mt-4" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : data.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl border border-slate-200">

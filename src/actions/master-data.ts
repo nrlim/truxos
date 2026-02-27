@@ -107,6 +107,14 @@ export async function getTrucks(tenantId: string, page: number = 1, limit: numbe
     }));
 }
 
+export async function getAllTrucks(tenantId: string) {
+    const data = await prisma.truck.findMany({
+        where: { tenantId },
+        orderBy: { licensePlate: "asc" },
+    });
+    return JSON.parse(JSON.stringify(data));
+}
+
 export async function createTruck(data: any) {
     const result = truckSchema.safeParse(data);
     if (!result.success) return { error: result.error.issues[0].message };
@@ -175,6 +183,15 @@ export async function getRoutes(tenantId: string, page: number = 1, limit: numbe
             totalPages: Math.ceil(total / limit)
         }
     }));
+}
+
+export async function getAllRoutes(tenantId: string) {
+    const data = await prisma.route.findMany({
+        where: { tenantId },
+        include: { tolls: true },
+        orderBy: { origin: "asc" },
+    });
+    return JSON.parse(JSON.stringify(data));
 }
 
 export async function createRoute(data: any) {
@@ -254,6 +271,14 @@ export async function getDrivers(tenantId: string, page: number = 1, limit: numb
             totalPages: Math.ceil(total / limit)
         }
     }));
+}
+
+export async function getAllDrivers(tenantId: string) {
+    const data = await prisma.driver.findMany({
+        where: { tenantId, status: "AVAILABLE" },
+        orderBy: { fullName: "asc" },
+    });
+    return JSON.parse(JSON.stringify(data));
 }
 
 export async function createDriver(data: any) {

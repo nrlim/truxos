@@ -12,8 +12,10 @@ import {
     X,
     Settings,
     ChevronRight,
+    FileText,
 } from "lucide-react";
 import clsx from "clsx";
+import { PageProgressBar } from "@/components/page-progress-bar";
 
 interface UserData {
     id: string;
@@ -76,6 +78,7 @@ export default function DashboardLayout({
 
     const navigation = [
         { name: "Dasbor", href: "/dashboard", icon: LayoutDashboard, current: pathname === "/dashboard" },
+        { name: "Surat Jalan", href: "/dashboard/surat-jalan", icon: FileText, current: pathname.startsWith("/dashboard/surat-jalan") },
         { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
         ...(user.role === "OWNER" || user.role === "ADMIN" ? [
             { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" }
@@ -147,12 +150,13 @@ export default function DashboardLayout({
                             <Link
                                 key={item.name}
                                 href={item.href}
+                                prefetch={true}
                                 onClick={() => setIsSidebarOpen(false)}
                                 className={clsx(
-                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group active:scale-[0.98]",
                                     item.current
                                         ? "bg-blue-50 text-blue-700"
-                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100"
                                 )}
                             >
                                 <item.icon className={clsx(
@@ -193,18 +197,21 @@ export default function DashboardLayout({
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
+                <PageProgressBar />
                 {/* Desktop Top Header (Breadcrumb) */}
                 <header className="hidden md:flex items-center h-16 px-8 border-b border-slate-200 bg-white sticky top-0 z-20">
                     <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
                         <span>Workspace</span>
                         <ChevronRight className="w-4 h-4 text-slate-300" />
                         <span className="text-slate-900 capitalize font-semibold">
-                            {pathname === "/dashboard" ? "Dasbor" : pathname.split('/').pop()}
+                            {pathname === "/dashboard" ? "Dasbor" : pathname.split('/')[2] || "Dasbor"}
                         </span>
                     </div>
                 </header>
 
-                {children}
+                <div className="flex-1 flex flex-col">
+                    {children}
+                </div>
             </div>
         </div>
     );
