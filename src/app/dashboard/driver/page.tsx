@@ -32,6 +32,7 @@ export default function DriverDashboardPage() {
         }, 60000); // Check every 60s
 
         return () => clearInterval(intervalId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     async function fetchActiveManifest(isInitial = false) {
@@ -705,7 +706,7 @@ function CompletionExpenseDrawer({ isOpen, onClose, manifestId, driverId, initia
                                                         <div className="mt-2 flex flex-col gap-2 text-sm text-rose-900 bg-rose-100 p-4 rounded-xl border-2 border-rose-200">
                                                             <div className="flex items-start gap-2.5">
                                                                 <AlertCircle className="w-5 h-5 mt-0.5 shrink-0 text-rose-600" />
-                                                                <p className="font-bold leading-snug">Pesan Admin: <span className="font-semibold text-rose-800">"{expComment.content}"</span></p>
+                                                                <p className="font-bold leading-snug">Pesan Admin: <span className="font-semibold text-rose-800">&quot;{expComment.content}&quot;</span></p>
                                                             </div>
                                                             <div className="mt-1 pt-3 border-t border-rose-200/60 bg-white/40 p-3 rounded-lg flex items-center gap-2">
                                                                 <RotateCcw className="w-4 h-4 text-rose-600 shrink-0" />
