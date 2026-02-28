@@ -5,16 +5,17 @@ import Link from "next/link";
 import { Plus, Search, Truck, Navigation, CheckCircle2, ChevronRight, MapPin, Map, Loader2, AlertCircle, Calendar, ExternalLink } from "lucide-react";
 import { getGoogleMapsUrl } from "@/lib/maps";
 import { useNotification } from "@/components/ui/notification-provider";
-import { getManifests, approveManifest, rejectManifest, completeManifest } from "@/actions/manifest";
+import { getManifests, approveManifest, rejectManifest, completeManifest, verifyManifest, reviseManifest } from "@/actions/manifest";
 import clsx from "clsx";
 import { ApprovalDrawer } from "./approval-drawer";
 import { CompletionDrawer } from "./completion-drawer";
+import { FinalReviewDrawer } from "./final-review-drawer";
 
 
 export default function SuratJalanPage() {
     const notify = useNotification();
     const [data, setData] = useState<any[]>([]);
-    const [summary, setSummary] = useState({ activeCount: 0, enRouteCount: 0, pendingCount: 0, completedTodayCount: 0 });
+    const [summary, setSummary] = useState({ activeCount: 0, enRouteCount: 0, pendingCount: 0, reviewCount: 0, completedTodayCount: 0 });
     const [meta, setMeta] = useState({ page: 1, limit: 10, totalPages: 1, total: 0 });
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<string>("STAFF");
@@ -26,6 +27,10 @@ export default function SuratJalanPage() {
 
     const [isCompletionDrawerOpen, setIsCompletionDrawerOpen] = useState(false);
     const [isCompleting, setIsCompleting] = useState(false);
+
+    const [isFinalReviewDrawerOpen, setIsFinalReviewDrawerOpen] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [isRevising, setIsRevising] = useState(false);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -81,6 +86,12 @@ export default function SuratJalanPage() {
         } else if (item.status === "EN_ROUTE") {
             setSelectedManifest(item);
             setIsCompletionDrawerOpen(true);
+        } else if (canApprove && item.status === "NEEDS_FINAL_REVIEW") {
+            setSelectedManifest(item);
+            setIsFinalReviewDrawerOpen(true);
+        } else if (item.status === "COMPLETED") {
+            setSelectedManifest(item);
+            setIsFinalReviewDrawerOpen(true);
         }
     };
 
@@ -150,8 +161,53 @@ export default function SuratJalanPage() {
         }
     };
 
+    const handleVerify = async (manifestId: string) => {
+        try {
+            setIsVerifying(true);
+            const tenantStr = localStorage.getItem("truxos_tenant");
+            if (!tenantStr) return;
+            const tenant = JSON.parse(tenantStr);
+            const res = await verifyManifest(manifestId, tenant.id);
+
+            if (res.error) {
+                notify.error(res.error);
+            } else {
+                notify.success("Final Review Selesai: Manifest ditutup.");
+                setIsFinalReviewDrawerOpen(false);
+                fetchData(meta.page);
+            }
+        } catch (e) {
+            notify.error("Terjadi kesalahan sistem");
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleRevise = async (manifestId: string, note: string) => {
+        try {
+            setIsRevising(true);
+            const tenantStr = localStorage.getItem("truxos_tenant");
+            if (!tenantStr) return;
+            const tenant = JSON.parse(tenantStr);
+            const res = await reviseManifest(manifestId, tenant.id, note);
+
+            if (res.error) {
+                notify.error(res.error);
+            } else {
+                notify.success("Dikembalikan ke Driver untuk direvisi.");
+                setIsFinalReviewDrawerOpen(false);
+                fetchData(meta.page);
+            }
+        } catch (e) {
+            notify.error("Terjadi kesalahan sistem");
+        } finally {
+            setIsRevising(false);
+        }
+    };
+
     const TABS = [
         { label: "Semua", value: "ALL" },
+        { label: "Butuh Verifikasi", value: "NEEDS_FINAL_REVIEW" },
         { label: "Berjalan", value: "EN_ROUTE" },
         { label: "Tertunda", value: "PENDING" },
         { label: "Selesai", value: "COMPLETED" },
@@ -164,6 +220,8 @@ export default function SuratJalanPage() {
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 rounded-full tracking-wide">Tertunda</span>;
             case "EN_ROUTE":
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full tracking-wide">Berjalan</span>;
+            case "NEEDS_FINAL_REVIEW":
+                return <span className="px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-200 border border-amber-300 rounded-full tracking-wide">Butuh Verifikasi</span>;
             case "COMPLETED":
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-full tracking-wide">Selesai</span>;
             case "REJECTED":
@@ -175,11 +233,7 @@ export default function SuratJalanPage() {
 
     const getProgressBar = (status: string) => {
         if (status === 'COMPLETED') {
-            return (
-                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                    <div className="bg-emerald-500 h-1.5 w-full rounded-full transition-all" />
-                </div>
-            );
+            return null; // Don't show progress bar to keep layout clean for completed tasks
         }
         if (status === 'EN_ROUTE') {
             return (
@@ -191,9 +245,14 @@ export default function SuratJalanPage() {
             );
         }
         if (status === 'REJECTED') {
+            return null;
+        }
+        if (status === 'NEEDS_FINAL_REVIEW') {
             return (
                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                    <div className="bg-red-500 h-1.5 w-full rounded-full transition-all" />
+                    <div className="bg-amber-400 h-1.5 w-11/12 rounded-full transition-all relative overflow-hidden">
+                        <div className="absolute top-0 bottom-0 left-0 right-0 animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                    </div>
                 </div>
             );
         }
@@ -252,10 +311,10 @@ export default function SuratJalanPage() {
                 <div className="bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm transition-shadow">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Menunggu Persetujuan</p>
-                            <h3 className="text-2xl font-bold text-slate-900 mt-1">{summary.pendingCount}</h3>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Butuh Verifikasi</p>
+                            <h3 className="text-2xl font-bold text-slate-900 mt-1">{summary.reviewCount}</h3>
                         </div>
-                        <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
                             <AlertCircle className="w-4 h-4" />
                         </div>
                     </div>
@@ -299,13 +358,25 @@ export default function SuratJalanPage() {
                     <p className="text-sm font-medium text-slate-500">Memuat data...</p>
                 </div>
             ) : data.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-slate-200 text-center flex-1">
-                    <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                        <Search className="w-6 h-6 text-slate-400" />
+                statusFilter === "NEEDS_FINAL_REVIEW" ? (
+                    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-xl border border-slate-200 text-center flex-1 shadow-sm">
+                        <div className="w-16 h-16 bg-blue-50/50 rounded-full flex items-center justify-center mb-5 ring-4 ring-blue-50">
+                            <CheckCircle2 className="w-8 h-8 text-blue-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900 mb-2">Semua tugas telah terverifikasi</h3>
+                        <p className="text-slate-500 text-sm max-w-sm">
+                            Tidak ada manifest yang menunggu validasi pengeluaran.
+                        </p>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 mb-1">Tidak ada data</h3>
-                    <p className="text-slate-500 text-sm">Tidak ditemukan manifest yang sesuai dengan filter.</p>
-                </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-slate-200 text-center flex-1 shadow-sm">
+                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                            <Search className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900 mb-1">Tidak ada data</h3>
+                        <p className="text-slate-500 text-sm">Tidak ditemukan manifest yang sesuai dengan filter.</p>
+                    </div>
+                )
             ) : (
                 <>
                     {/* Desktop Table View */}
@@ -328,17 +399,17 @@ export default function SuratJalanPage() {
                                             onClick={() => handleRowClick(item)}
                                             className={clsx(
                                                 "transition-colors group",
-                                                (canApprove && item.status === "PENDING") || item.status === "EN_ROUTE" ? "cursor-pointer hover:bg-slate-50/80" : ""
+                                                (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer hover:bg-slate-50/80" : ""
                                             )}
                                         >
-                                            <td className="px-5 py-3 whitespace-nowrap">
-                                                <div className="flex flex-col gap-1 items-start">
+                                            <td className="px-5 py-4 align-middle whitespace-nowrap">
+                                                <div className="flex flex-col gap-1 items-start justify-center h-full">
                                                     <span className="font-bold text-slate-900 tracking-tight">{item.manifestNumber}</span>
                                                     {getStatusBadge(item.status)}
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3">
-                                                <div className="flex flex-col gap-1 text-sm text-slate-700 font-medium">
+                                            <td className="px-5 py-4 align-middle">
+                                                <div className="flex flex-col gap-1 text-sm text-slate-700 font-medium justify-center h-full">
                                                     <div className="flex items-center gap-1.5">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
                                                         <span className="truncate max-w-[200px]">{item.route.origin}</span>
@@ -347,28 +418,32 @@ export default function SuratJalanPage() {
                                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                                                         <span className="truncate max-w-[200px]">{item.route.destination}</span>
                                                     </div>
-                                                    <div className="mt-1 max-w-[200px]">
-                                                        {getProgressBar(item.status)}
-                                                    </div>
+                                                    {getProgressBar(item.status) && (
+                                                        <div className="mt-1 max-w-[200px]">
+                                                            {getProgressBar(item.status)}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 whitespace-nowrap">
-                                                <div className="flex items-center gap-3">
+                                            <td className="px-5 py-4 align-middle whitespace-nowrap">
+                                                <div className="flex items-center gap-3 h-full">
                                                     <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                                                         <Truck className="w-3.5 h-3.5 text-slate-600" />
                                                     </div>
-                                                    <div className="flex flex-col min-w-0">
+                                                    <div className="flex flex-col min-w-0 justify-center">
                                                         <span className="text-sm font-bold text-slate-900 uppercase tracking-wide">{item.truck.licensePlate}</span>
                                                         <span className="text-xs text-slate-500 font-medium truncate">{item.driver.fullName}</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3 whitespace-nowrap">
-                                                <span className="text-sm font-bold text-slate-900 tracking-tight">
-                                                    Rp {Number(item.totalEstimatedCost).toLocaleString("id-ID")}
-                                                </span>
+                                            <td className="px-5 py-4 align-middle whitespace-nowrap">
+                                                <div className="flex align-center h-full py-1">
+                                                    <span className="text-sm font-bold text-slate-900 tracking-tight">
+                                                        Rp {Number(item.totalEstimatedCost).toLocaleString("id-ID")}
+                                                    </span>
+                                                </div>
                                             </td>
-                                            <td className="px-5 py-3 text-right whitespace-nowrap">
+                                            <td className="px-5 py-4 align-middle text-right whitespace-nowrap">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {getGoogleMapsUrl(item.route.originCoords, item.route.destinationCoords) && (
                                                         <a
@@ -391,12 +466,26 @@ export default function SuratJalanPage() {
                                                         >
                                                             Setujui
                                                         </button>
+                                                    ) : item.status === "NEEDS_FINAL_REVIEW" && canApprove ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                            className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm focus:ring-2 focus:ring-amber-200"
+                                                        >
+                                                            Review Final
+                                                        </button>
                                                     ) : item.status === "EN_ROUTE" ? (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
                                                             className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm focus:ring-2 focus:ring-blue-200"
                                                         >
                                                             Selesaikan
+                                                        </button>
+                                                    ) : item.status === "COMPLETED" ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                                        >
+                                                            Lihat Detail
                                                         </button>
                                                     ) : (
                                                         <div className="w-7 h-7 rounded-md flex items-center justify-center bg-white border border-slate-200 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors ml-auto shadow-sm">
@@ -420,7 +509,7 @@ export default function SuratJalanPage() {
                                 onClick={() => handleRowClick(item)}
                                 className={clsx(
                                     "bg-white rounded-xl border border-slate-200 shadow-sm p-4 relative transition-colors",
-                                    (canApprove && item.status === "PENDING") || item.status === "EN_ROUTE" ? "cursor-pointer active:bg-slate-50" : ""
+                                    (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer active:bg-slate-50" : ""
                                 )}
                             >
                                 <div className="flex justify-between items-start mb-4">
@@ -478,12 +567,26 @@ export default function SuratJalanPage() {
                                             >
                                                 Setujui
                                             </button>
+                                        ) : item.status === "NEEDS_FINAL_REVIEW" && canApprove ? (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                            >
+                                                Review
+                                            </button>
                                         ) : item.status === "EN_ROUTE" ? (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
                                                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-1"
                                             >
                                                 Selesaikan
+                                            </button>
+                                        ) : item.status === "COMPLETED" ? (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                className="px-4 py-1.5 bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                            >
+                                                Detail
                                             </button>
                                         ) : (
                                             <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -547,6 +650,17 @@ export default function SuratJalanPage() {
                 manifest={selectedManifest}
                 onComplete={handleComplete}
                 isCompleting={isCompleting}
+            />
+
+            <FinalReviewDrawer
+                isOpen={isFinalReviewDrawerOpen}
+                onClose={() => setIsFinalReviewDrawerOpen(false)}
+                manifest={selectedManifest}
+                onVerify={handleVerify}
+                onRevise={handleRevise}
+                isVerifying={isVerifying}
+                isRevising={isRevising}
+                isReadOnly={selectedManifest?.status === "COMPLETED"}
             />
         </div>
     );

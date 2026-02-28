@@ -23,7 +23,8 @@ export async function getActiveDriverManifest(userId: string) {
             truck: true,
             route: {
                 include: { tolls: true }
-            }
+            },
+            expenses: true
         }
     });
 
@@ -37,7 +38,11 @@ export async function getActiveDriverManifest(userId: string) {
                     ...t,
                     fee: t.fee.toString()
                 }))
-            } : null
+            } : null,
+            expenses: activeManifest.expenses?.map(e => ({
+                ...e,
+                amount: e.amount.toString()
+            })) || []
         } : null,
         driverId: user.driverId
     };
@@ -63,6 +68,9 @@ export async function completeDriverManifest(manifestId: string, tenantId: strin
         }));
 
         await prisma.$transaction([
+            prisma.postTripExpense.deleteMany({
+                where: { manifestId }
+            }),
             prisma.manifest.update({
                 where: { id: manifestId },
                 data: {
@@ -71,10 +79,6 @@ export async function completeDriverManifest(manifestId: string, tenantId: strin
                         create: expensesData
                     }
                 }
-            }),
-            prisma.driver.update({
-                where: { id: manifest.driverId },
-                data: { status: "AVAILABLE" }
             }),
             prisma.truck.update({
                 where: { id: manifest.truckId },

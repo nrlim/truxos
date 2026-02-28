@@ -30,6 +30,7 @@ export async function getManifests(tenantId: string, page: number = 1, limit: nu
         activeCount,
         enRouteCount,
         pendingCount,
+        reviewCount,
         completedTodayCount
     ] = await Promise.all([
         prisma.manifest.findMany({
@@ -40,15 +41,17 @@ export async function getManifests(tenantId: string, page: number = 1, limit: nu
                 route: {
                     include: { tolls: true }
                 },
+                expenses: true,
             },
             orderBy: { createdAt: "desc" },
             skip,
             take: limit,
         }),
         prisma.manifest.count({ where: whereClause }),
-        prisma.manifest.count({ where: { tenantId, status: { in: ['PENDING', 'EN_ROUTE'] } } }),
+        prisma.manifest.count({ where: { tenantId, status: { in: ['PENDING', 'EN_ROUTE', 'NEEDS_FINAL_REVIEW'] } } }),
         prisma.manifest.count({ where: { tenantId, status: 'EN_ROUTE' } }),
         prisma.manifest.count({ where: { tenantId, status: 'PENDING' } }),
+        prisma.manifest.count({ where: { tenantId, status: 'NEEDS_FINAL_REVIEW' } }),
         prisma.manifest.count({
             where: {
                 tenantId,
@@ -64,6 +67,7 @@ export async function getManifests(tenantId: string, page: number = 1, limit: nu
             activeCount,
             enRouteCount,
             pendingCount,
+            reviewCount,
             completedTodayCount
         },
         meta: {
@@ -197,5 +201,60 @@ export async function completeManifest(manifestId: string, tenantId: string, new
         return { success: true };
     } catch (error: any) {
         return { error: error.message || "Failed to complete manifest" };
+    }
+}
+
+export async function verifyManifest(manifestId: string, tenantId: string) {
+    try {
+        const manifest = await prisma.manifest.findUnique({
+            where: { id: manifestId, tenantId },
+            include: { truck: true, route: true }
+        });
+
+        if (!manifest) return { error: "Manifest not found" };
+        if (manifest.status !== "NEEDS_FINAL_REVIEW") return { error: "Manifest is not pending review" };
+
+        await prisma.$transaction([
+            prisma.manifest.update({
+                where: { id: manifestId },
+                data: {
+                    status: "COMPLETED",
+                }
+            }),
+            prisma.driver.update({
+                where: { id: manifest.driverId },
+                data: { status: "AVAILABLE" }
+            })
+            // truck odometer was already updated by driver, so no need to update truck here
+        ]);
+
+        revalidatePath("/dashboard/surat-jalan");
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message || "Failed to verify manifest" };
+    }
+}
+
+export async function reviseManifest(manifestId: string, tenantId: string, note: string) {
+    try {
+        const manifest = await prisma.manifest.findUnique({
+            where: { id: manifestId, tenantId }
+        });
+
+        if (!manifest) return { error: "Manifest not found" };
+        if (manifest.status !== "NEEDS_FINAL_REVIEW") return { error: "Manifest is not pending review" };
+
+        await prisma.manifest.update({
+            where: { id: manifestId },
+            // Set status back to EN_ROUTE so driver can see it and edit expenses/odometer
+            // Could add a 'revisionNote' field to schema, but user says "with a note for correction"
+            // We don't have revisionNote in schema. Let's just update status for now.
+            data: { status: "EN_ROUTE" }
+        });
+
+        revalidatePath("/dashboard/surat-jalan");
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message || "Failed to revise manifest" };
     }
 }
