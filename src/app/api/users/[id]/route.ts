@@ -56,6 +56,7 @@ export async function PUT(
                 fullName: true,
                 role: true,
                 tenantId: true,
+                driverId: true,
             }
         });
 

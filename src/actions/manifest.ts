@@ -174,6 +174,7 @@ export async function completeManifest(manifestId: string, tenantId: string, new
             amount: Number(e.amount),
             notes: e.notes,
             attachment: e.attachmentUrl || null,
+            liters: e.liters ? Number(e.liters) : null,
             tenantId
         }));
 

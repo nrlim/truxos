@@ -50,6 +50,7 @@ enum ExpenseCategory {
   DARURAT
   PUNGLI
   LAIN_LAIN
+  BAHAN_BAKAR
 }
 
 enum ManifestStatus {
@@ -65,11 +66,11 @@ model Tenant {
   name String
   slug String @unique
 
-  users   User[]
-  tolls   Toll[]
-  trucks  Truck[]
-  routes  Route[]
-  drivers Driver[]
+  users     User[]
+  tolls     Toll[]
+  trucks    Truck[]
+  routes    Route[]
+  drivers   Driver[]
   manifests Manifest[]
   expenses  PostTripExpense[]
 
@@ -138,12 +139,12 @@ model Truck {
 }
 
 model Route {
-  id                 String  @id @default(cuid())
-  origin             String
-  destination        String
-  originCoords       String? @map("origin_coords")
-  destinationCoords  String? @map("destination_coords")
-  baseDistanceKm     Float   @map("base_distance_km")
+  id                String  @id @default(cuid())
+  origin            String
+  destination       String
+  originCoords      String? @map("origin_coords")
+  destinationCoords String? @map("destination_coords")
+  baseDistanceKm    Float   @map("base_distance_km")
 
   tolls Toll[]
 
@@ -167,7 +168,7 @@ model Driver {
   status         DriverStatus @default(AVAILABLE)
   dailyAllowance Decimal      @map("daily_allowance") @db.Decimal(12, 2)
 
-  user           User?
+  user User?
 
   tenantId String @map("tenant_id")
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -182,50 +183,52 @@ model Driver {
 }
 
 model Manifest {
-  id                   String         @id @default(cuid())
-  manifestNumber       String         @unique @map("manifest_number")
-  status               ManifestStatus @default(PENDING)
+  id             String         @id @default(cuid())
+  manifestNumber String         @unique @map("manifest_number")
+  status         ManifestStatus @default(PENDING)
 
-  truckId              String         @map("truck_id")
-  truck                Truck          @relation(fields: [truckId], references: [id])
+  truckId String @map("truck_id")
+  truck   Truck  @relation(fields: [truckId], references: [id])
 
-  driverId             String         @map("driver_id")
-  driver               Driver         @relation(fields: [driverId], references: [id])
+  driverId String @map("driver_id")
+  driver   Driver @relation(fields: [driverId], references: [id])
 
-  routeId              String         @map("route_id")
-  route                Route          @relation(fields: [routeId], references: [id])
+  routeId String @map("route_id")
+  route   Route  @relation(fields: [routeId], references: [id])
 
-  additionalDistanceKm Float          @default(0) @map("additional_distance_km")
-  totalEstimatedCost   Decimal        @db.Decimal(12, 2) @map("total_estimated_cost")
-  departureDate        DateTime       @map("departure_date")
+  additionalDistanceKm Float    @default(0) @map("additional_distance_km")
+  totalEstimatedCost   Decimal  @map("total_estimated_cost") @db.Decimal(12, 2)
+  departureDate        DateTime @map("departure_date")
 
-  tenantId             String         @map("tenant_id")
-  tenant               Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  expenses             PostTripExpense[]
+  expenses PostTripExpense[]
 
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([tenantId, status])
   @@map("manifests")
 }
 
 model PostTripExpense {
-  id          String         @id @default(cuid())
-  category    ExpenseCategory
-  amount      Decimal        @db.Decimal(12, 2)
-  notes       String?        @db.Text
-  attachment  String?
+  id         String          @id @default(cuid())
+  category   ExpenseCategory
+  amount     Decimal         @db.Decimal(12, 2)
+  notes      String?         @db.Text
+  attachment String?
+  liters     Float? // Used specifically if category is BAHAN_BAKAR
 
-  manifestId  String         @map("manifest_id")
-  manifest    Manifest       @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+  manifestId String   @map("manifest_id")
+  manifest   Manifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
 
-  tenantId    String         @map("tenant_id")
-  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String @map("tenant_id")
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([manifestId])
   @@index([tenantId])

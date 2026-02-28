@@ -123,7 +123,7 @@ export default function DashboardLayout({
                 isSidebarOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                 {/* Logo Area */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200">
+                <div className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-slate-200">
                     <Link href="/dashboard" className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
                             <Truck className="w-5 h-5 text-white" strokeWidth={2.5} />
@@ -132,14 +132,14 @@ export default function DashboardLayout({
                             <span className="text-[17px] font-bold text-slate-900 leading-none">
                                 trux<span className="text-blue-600">OS</span>
                             </span>
-                            <span className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-1">
+                            <span className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-1 line-clamp-1 w-44">
                                 {tenant.name}
                             </span>
                         </div>
                     </Link>
                     <button
                         onClick={() => setIsSidebarOpen(false)}
-                        className="md:hidden p-2 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-lg"
+                        className="md:hidden p-2 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-lg shrink-0"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -202,7 +202,7 @@ export default function DashboardLayout({
             <div className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
                 <PageProgressBar />
                 {/* Desktop Top Header (Breadcrumb) */}
-                <header className="hidden md:flex items-center h-16 px-8 border-b border-slate-200 bg-white sticky top-0 z-20">
+                <header className="shrink-0 hidden md:flex items-center h-16 px-8 border-b border-slate-200 bg-white sticky top-0 z-20">
                     <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
                         <span>Workspace</span>
                         <ChevronRight className="w-4 h-4 text-slate-300" />

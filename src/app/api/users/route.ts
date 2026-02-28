@@ -26,6 +26,7 @@ export async function GET(request: Request) {
                 fullName: true,
                 role: true,
                 tenantId: true,
+                driverId: true,
             },
             orderBy: {
                 createdAt: 'desc'
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
                 fullName: true,
                 role: true,
                 tenantId: true,
+                driverId: true,
             }
         });
 

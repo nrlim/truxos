@@ -43,11 +43,17 @@ export function CompletionDrawer({
     const [expCategory, setExpCategory] = useState("LAIN_LAIN");
     const [expAmount, setExpAmount] = useState("");
     const [expNotes, setExpNotes] = useState("");
+    const [expLiters, setExpLiters] = useState("");
     const [expAttachment, setExpAttachment] = useState<File | null>(null);
 
     const handleAddExpense = async () => {
         if (!expAmount || isNaN(Number(expAmount))) {
-            notify.error("Jumlah tidak valid");
+            notify.error("Jumlah harga tidak valid");
+            return;
+        }
+
+        if (expCategory === "BAHAN_BAKAR" && (!expLiters || isNaN(Number(expLiters)))) {
+            notify.error("Jumlah liter tidak valid");
             return;
         }
 
@@ -80,12 +86,14 @@ export function CompletionDrawer({
             category: expCategory,
             amount: Number(expAmount),
             notes: expNotes,
+            liters: expCategory === "BAHAN_BAKAR" ? Number(expLiters) : null,
             attachmentFileName,
             attachmentUrl
         }]);
         setExpCategory("LAIN_LAIN");
         setExpAmount("");
         setExpNotes("");
+        setExpLiters("");
         setExpAttachment(null);
         setIsAddingExpense(false);
     };
@@ -116,6 +124,7 @@ export function CompletionDrawer({
             setExpCategory("LAIN_LAIN");
             setExpAmount("");
             setExpNotes("");
+            setExpLiters("");
             setExpAttachment(null);
         }
     }, [manifest, isOpen]);
@@ -289,7 +298,12 @@ export function CompletionDrawer({
                                             <div key={exp.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
                                                 <div className="min-w-0">
                                                     <p className="font-bold text-slate-900 text-xs uppercase">{exp.category}</p>
-                                                    <p className="font-extrabold text-blue-600 text-sm mt-0.5">Rp {exp.amount.toLocaleString('id-ID')}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="font-extrabold text-blue-600 text-sm">Rp {exp.amount.toLocaleString('id-ID')}</p>
+                                                        {exp.liters && exp.category === "BAHAN_BAKAR" && (
+                                                            <span className="font-medium text-amber-600 text-xs bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">{exp.liters} Liter</span>
+                                                        )}
+                                                    </div>
                                                     {exp.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{exp.notes}</p>}
                                                     {exp.attachmentFileName && (
                                                         <div className="flex items-center gap-1 mt-1 text-blue-600 text-[10px] font-bold">
@@ -324,6 +338,7 @@ export function CompletionDrawer({
                                                 <option value="DARURAT">Darurat (Ban Bocor, dll)</option>
                                                 <option value="PUNGLI">Pungli / Koordinasi</option>
                                                 <option value="LAIN_LAIN">Lain-lain</option>
+                                                <option value="BAHAN_BAKAR">BBM (Bahan Bakar)</option>
                                             </select>
                                         </div>
                                         <div>
@@ -336,6 +351,19 @@ export function CompletionDrawer({
                                                 className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm"
                                             />
                                         </div>
+                                        {expCategory === "BAHAN_BAKAR" && (
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Jumlah (Liter)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={expLiters}
+                                                    onChange={(e) => setExpLiters(e.target.value)}
+                                                    placeholder="Contoh: 15.5"
+                                                    className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-bold text-sm"
+                                                />
+                                            </div>
+                                        )}
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Catatan</label>
                                             <input

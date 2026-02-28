@@ -20,11 +20,12 @@ export default function MasterDataLayout({
 
     return (
         <div className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 space-y-6">
-            <div className="flex flex-col space-y-2">
+            <div className="flex md:items-center flex-col md:flex-row gap-2 md:gap-4 md:h-16 px-1">
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
                     Data Master
                 </h1>
-                <p className="text-sm text-slate-500">
+                <div className="hidden md:block h-6 w-px bg-slate-200 mx-2" />
+                <p className="text-sm text-slate-500 font-medium">
                     Kelola data utama operasional truxOS untuk akurasi estimasi dan pelaporan.
                 </p>
             </div>
