@@ -57,6 +57,7 @@ enum ManifestStatus {
   PENDING
   EN_ROUTE
   NEEDS_FINAL_REVIEW
+  REVISION_REQUIRED
   COMPLETED
   REJECTED
 }
@@ -204,6 +205,7 @@ model Manifest {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   expenses PostTripExpense[]
+  comments ManifestComment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -230,7 +232,32 @@ model PostTripExpense {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  comments ManifestComment[]
+
   @@index([manifestId])
   @@index([tenantId])
   @@map("post_trip_expenses")
+}
+
+enum CommentType {
+  GENERAL
+  EXPENSE_SPECIFIC
+}
+
+model ManifestComment {
+  id         String      @id @default(cuid())
+  type       CommentType
+  content    String      @db.Text
+
+  expenseId  String?          @map("expense_id")
+  expense    PostTripExpense? @relation(fields: [expenseId], references: [id])
+
+  manifestId String   @map("manifest_id")
+  manifest   Manifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  
+  @@index([manifestId])
+  @@index([expenseId])
+  @@map("manifest_comments")
 }

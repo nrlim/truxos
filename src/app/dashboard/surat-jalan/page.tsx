@@ -86,7 +86,7 @@ export default function SuratJalanPage() {
         } else if (item.status === "EN_ROUTE") {
             setSelectedManifest(item);
             setIsCompletionDrawerOpen(true);
-        } else if (canApprove && item.status === "NEEDS_FINAL_REVIEW") {
+        } else if (canApprove && (item.status === "NEEDS_FINAL_REVIEW" || item.status === "REVISION_REQUIRED")) {
             setSelectedManifest(item);
             setIsFinalReviewDrawerOpen(true);
         } else if (item.status === "COMPLETED") {
@@ -183,13 +183,13 @@ export default function SuratJalanPage() {
         }
     };
 
-    const handleRevise = async (manifestId: string, note: string) => {
+    const handleRevise = async (manifestId: string, note: string, specificComments: { expenseId: string, note: string }[] = []) => {
         try {
             setIsRevising(true);
             const tenantStr = localStorage.getItem("truxos_tenant");
             if (!tenantStr) return;
             const tenant = JSON.parse(tenantStr);
-            const res = await reviseManifest(manifestId, tenant.id, note);
+            const res = await reviseManifest(manifestId, tenant.id, note, specificComments);
 
             if (res.error) {
                 notify.error(res.error);
@@ -222,6 +222,8 @@ export default function SuratJalanPage() {
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 rounded-full tracking-wide">Berjalan</span>;
             case "NEEDS_FINAL_REVIEW":
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-amber-800 bg-amber-200 border border-amber-300 rounded-full tracking-wide">Butuh Verifikasi</span>;
+            case "REVISION_REQUIRED":
+                return <span className="px-2.5 py-1 text-[11px] font-bold text-rose-800 bg-rose-200 border border-rose-300 rounded-full tracking-wide">Butuh Perbaikan</span>;
             case "COMPLETED":
                 return <span className="px-2.5 py-1 text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-full tracking-wide">Selesai</span>;
             case "REJECTED":
@@ -247,7 +249,7 @@ export default function SuratJalanPage() {
         if (status === 'REJECTED') {
             return null;
         }
-        if (status === 'NEEDS_FINAL_REVIEW') {
+        if (status === 'NEEDS_FINAL_REVIEW' || status === 'REVISION_REQUIRED') {
             return (
                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
                     <div className="bg-amber-400 h-1.5 w-11/12 rounded-full transition-all relative overflow-hidden">
@@ -399,7 +401,7 @@ export default function SuratJalanPage() {
                                             onClick={() => handleRowClick(item)}
                                             className={clsx(
                                                 "transition-colors group",
-                                                (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer hover:bg-slate-50/80" : ""
+                                                (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW" || item.status === "REVISION_REQUIRED")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer hover:bg-slate-50/80" : ""
                                             )}
                                         >
                                             <td className="px-5 py-4 align-middle whitespace-nowrap">
@@ -473,6 +475,13 @@ export default function SuratJalanPage() {
                                                         >
                                                             Review Final
                                                         </button>
+                                                    ) : item.status === "REVISION_REQUIRED" ? (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                            className="px-4 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                                        >
+                                                            Menunggu Revisi
+                                                        </button>
                                                     ) : item.status === "EN_ROUTE" ? (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
@@ -509,7 +518,7 @@ export default function SuratJalanPage() {
                                 onClick={() => handleRowClick(item)}
                                 className={clsx(
                                     "bg-white rounded-xl border border-slate-200 shadow-sm p-4 relative transition-colors",
-                                    (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer active:bg-slate-50" : ""
+                                    (canApprove && (item.status === "PENDING" || item.status === "NEEDS_FINAL_REVIEW" || item.status === "REVISION_REQUIRED")) || item.status === "EN_ROUTE" || item.status === "COMPLETED" ? "cursor-pointer active:bg-slate-50" : ""
                                 )}
                             >
                                 <div className="flex justify-between items-start mb-4">
@@ -573,6 +582,13 @@ export default function SuratJalanPage() {
                                                 className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
                                             >
                                                 Review
+                                            </button>
+                                        ) : item.status === "REVISION_REQUIRED" ? (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRowClick(item); }}
+                                                className="px-4 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                            >
+                                                Menunggu Revisi
                                             </button>
                                         ) : item.status === "EN_ROUTE" ? (
                                             <button
@@ -660,7 +676,7 @@ export default function SuratJalanPage() {
                 onRevise={handleRevise}
                 isVerifying={isVerifying}
                 isRevising={isRevising}
-                isReadOnly={selectedManifest?.status === "COMPLETED"}
+                isReadOnly={selectedManifest?.status === "COMPLETED" || selectedManifest?.status === "REVISION_REQUIRED"}
             />
         </div>
     );

@@ -13,37 +13,46 @@ export async function getActiveDriverManifest(userId: string) {
         return { error: "Driver profile not associated with this user" };
     }
 
-    const activeManifest = await prisma.manifest.findFirst({
+    const activeManifests = await prisma.manifest.findMany({
         where: {
             tenantId: user.tenantId,
             driverId: user.driverId,
-            status: "EN_ROUTE"
+            status: { in: ["EN_ROUTE", "REVISION_REQUIRED"] }
         },
         include: {
             truck: true,
             route: {
                 include: { tolls: true }
             },
-            expenses: true
-        }
+            expenses: true,
+            comments: true
+        },
+        orderBy: { createdAt: "desc" }
+    });
+
+    const enRouteManifest = activeManifests.find(m => m.status === "EN_ROUTE");
+    const revisionManifests = activeManifests.filter(m => m.status === "REVISION_REQUIRED");
+
+    const formatManifest = (manifest: any) => ({
+        ...manifest,
+        totalEstimatedCost: manifest.totalEstimatedCost.toString(),
+        route: manifest.route ? {
+            ...manifest.route,
+            tolls: manifest.route.tolls?.map((t: any) => ({
+                ...t,
+                fee: t.fee.toString()
+            }))
+        } : null,
+        expenses: manifest.expenses?.map((e: any) => ({
+            ...e,
+            amount: e.amount.toString()
+        })) || [],
+        comments: manifest.comments || []
     });
 
     return {
-        data: activeManifest ? {
-            ...activeManifest,
-            totalEstimatedCost: activeManifest.totalEstimatedCost.toString(),
-            route: activeManifest.route ? {
-                ...activeManifest.route,
-                tolls: activeManifest.route.tolls?.map(t => ({
-                    ...t,
-                    fee: t.fee.toString()
-                }))
-            } : null,
-            expenses: activeManifest.expenses?.map(e => ({
-                ...e,
-                amount: e.amount.toString()
-            })) || []
-        } : null,
+        data: enRouteManifest ? formatManifest(enRouteManifest) : null,
+        revisions: revisionManifests.map(formatManifest),
         driverId: user.driverId
     };
 }
@@ -56,7 +65,7 @@ export async function completeDriverManifest(manifestId: string, tenantId: strin
         });
 
         if (!manifest) return { error: "Manifest not found" };
-        if (manifest.status !== "EN_ROUTE") return { error: "Manifest is not active" };
+        if (manifest.status !== "EN_ROUTE" && manifest.status !== "REVISION_REQUIRED") return { error: "Manifest is not active" };
         if (manifest.driverId !== driverId) return { error: "Unauthorized" };
 
         const expensesData = expenses.map(e => ({

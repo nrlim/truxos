@@ -236,7 +236,7 @@ export async function verifyManifest(manifestId: string, tenantId: string) {
     }
 }
 
-export async function reviseManifest(manifestId: string, tenantId: string, note: string) {
+export async function reviseManifest(manifestId: string, tenantId: string, generalNote: string, specificComments: { expenseId: string, note: string }[] = []) {
     try {
         const manifest = await prisma.manifest.findUnique({
             where: { id: manifestId, tenantId }
@@ -245,13 +245,28 @@ export async function reviseManifest(manifestId: string, tenantId: string, note:
         if (!manifest) return { error: "Manifest not found" };
         if (manifest.status !== "NEEDS_FINAL_REVIEW") return { error: "Manifest is not pending review" };
 
-        await prisma.manifest.update({
-            where: { id: manifestId },
-            // Set status back to EN_ROUTE so driver can see it and edit expenses/odometer
-            // Could add a 'revisionNote' field to schema, but user says "with a note for correction"
-            // We don't have revisionNote in schema. Let's just update status for now.
-            data: { status: "EN_ROUTE" }
-        });
+        const commentsData: any[] = [];
+        if (generalNote && generalNote.trim() !== "") {
+            commentsData.push({ type: "GENERAL", content: generalNote });
+        }
+        for (const c of specificComments) {
+            if (c.note && c.note.trim() !== "") {
+                commentsData.push({ type: "EXPENSE_SPECIFIC", content: c.note, expenseId: c.expenseId });
+            }
+        }
+
+        await prisma.$transaction([
+            prisma.manifestComment.deleteMany({ where: { manifestId } }),
+            prisma.manifest.update({
+                where: { id: manifestId },
+                data: {
+                    status: "REVISION_REQUIRED",
+                    comments: {
+                        create: commentsData
+                    }
+                }
+            })
+        ]);
 
         revalidatePath("/dashboard/surat-jalan");
         return { success: true };
@@ -259,3 +274,4 @@ export async function reviseManifest(manifestId: string, tenantId: string, note:
         return { error: error.message || "Failed to revise manifest" };
     }
 }
+
