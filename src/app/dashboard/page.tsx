@@ -62,7 +62,7 @@ export default function DashboardPage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [tenant, setTenant] = useState<TenantData | null>(null);
     const [viewMode, setViewMode] = useState<"Bulanan" | "Kuartalan">("Bulanan");
-    const [rincianTab, setRincianTab] = useState<"SEMUA" | "ESTIMASI" | "AKTUAL">("SEMUA");
+    const [rincianTab, setRincianTab] = useState<"ESTIMASI" | "AKTUAL">("ESTIMASI");
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
     const filteredRincian = useMemo(() => {
         if (!metrics?.rincianBiaya) return [];
-        return metrics.rincianBiaya.filter(item => rincianTab === "SEMUA" || item.type === rincianTab);
+        return metrics.rincianBiaya.filter(item => item.type === rincianTab);
     }, [metrics?.rincianBiaya, rincianTab]);
 
     const maxRincianCost = useMemo(() => {
@@ -338,12 +338,6 @@ export default function DashboardPage() {
                         </h3>
                         <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-sm">
                             <button
-                                onClick={() => setRincianTab("SEMUA")}
-                                className={`px-3 py-1.5 text-xs font-medium rounded shadow-sm transition-all focus:outline-none ${rincianTab === "SEMUA" ? "bg-white text-slate-900" : "text-slate-500 hover:text-slate-700"}`}
-                            >
-                                Semua
-                            </button>
-                            <button
                                 onClick={() => setRincianTab("ESTIMASI")}
                                 className={`px-3 py-1.5 text-xs font-medium rounded shadow-sm transition-all focus:outline-none ${rincianTab === "ESTIMASI" ? "bg-white text-slate-900" : "text-slate-500 hover:text-slate-700"}`}
                             >
@@ -383,8 +377,6 @@ export default function DashboardPage() {
                                         <div className="flex justify-between items-center mb-2">
                                             <span className="text-sm font-semibold text-slate-700 capitalize flex items-center gap-2">
                                                 {item.name.toLowerCase()}
-                                                {item.type === "AKTUAL" && <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-sm font-bold border border-red-100 uppercase">Aktual</span>}
-                                                {item.type === "ESTIMASI" && <span className="text-[10px] bg-sky-50 text-sky-600 px-1.5 py-0.5 rounded-sm font-bold border border-sky-100 uppercase">Estimasi</span>}
                                             </span>
                                             <span className="text-sm font-bold text-slate-900">
                                                 {formatRupiah(item.value)}
