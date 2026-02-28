@@ -13,6 +13,7 @@ import {
     Settings,
     ChevronRight,
     FileText,
+    BarChart2,
 } from "lucide-react";
 import clsx from "clsx";
 import { PageProgressBar } from "@/components/page-progress-bar";
@@ -84,7 +85,8 @@ export default function DashboardLayout({
             { name: "Surat Jalan", href: "/dashboard/surat-jalan", icon: FileText, current: pathname.startsWith("/dashboard/surat-jalan") },
             ...(user.role === "OWNER" || user.role === "ADMIN" ? [
                 { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
-                { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" }
+                { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" },
+                { name: "Laporan", href: "/dashboard/reports", icon: BarChart2, current: pathname === "/dashboard/reports" }
             ] : []),
         ])
     ];
