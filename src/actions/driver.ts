@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { syncExpensesToAccuwrite } from "@/lib/integration";
 
 export async function getActiveDriverManifest(userId: string) {
     const user = await prisma.user.findUnique({
@@ -75,6 +76,16 @@ export async function completeDriverManifest(manifestId: string, tenantId: strin
             attachment: e.attachmentUrl || null,
             tenantId
         }));
+
+        // Integrasi Accuwrite: Synchronize Expenses
+        try {
+            await syncExpensesToAccuwrite(tenantId, expensesData, manifest.manifestNumber);
+        } catch (integrationError: any) {
+            if (integrationError.message.includes("403")) {
+                return { error: "Integrasi TruXos ke Accuwrite tidak diaktifkan (403 Forbidden)." };
+            }
+            console.error("Accuwrite Integration failed", integrationError);
+        }
 
         await prisma.$transaction([
             prisma.postTripExpense.deleteMany({

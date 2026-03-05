@@ -86,7 +86,8 @@ export default function DashboardLayout({
             ...(user.role === "OWNER" || user.role === "ADMIN" ? [
                 { name: "Data Master", href: "/dashboard/master-data/armada", icon: Truck, current: pathname.startsWith("/dashboard/master-data") },
                 { name: "Pengguna", href: "/dashboard/users", icon: Users, current: pathname === "/dashboard/users" },
-                { name: "Laporan", href: "/dashboard/reports", icon: BarChart2, current: pathname === "/dashboard/reports" }
+                { name: "Laporan", href: "/dashboard/reports", icon: BarChart2, current: pathname === "/dashboard/reports" },
+                { name: "Pengaturan", href: "/dashboard/settings/integrations/truxos", icon: Settings, current: pathname.startsWith("/dashboard/settings") }
             ] : []),
         ])
     ];

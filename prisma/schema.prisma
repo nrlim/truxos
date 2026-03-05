@@ -74,6 +74,8 @@ model Tenant {
   drivers   Driver[]
   manifests Manifest[]
   expenses  PostTripExpense[]
+  integrations IntegrationConfig[]
+  integrationLogs IntegrationLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -260,4 +262,40 @@ model ManifestComment {
   @@index([manifestId])
   @@index([expenseId])
   @@map("manifest_comments")
+}
+
+model IntegrationConfig {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  serviceName String   @map("service_name") // e.g. "TRUXOS" or "ACCUWRITE"
+  isEnabled   Boolean  @default(false)      @map("is_enabled")
+  baseUrl     String?  @map("base_url")
+  apiKey      String   @map("api_key")
+  apiSecret   String?  @map("api_secret")
+  mappingJson String?  @map("mapping_json") @db.Text // Store mappings
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, serviceName])
+  @@map("integration_configs")
+}
+
+model IntegrationLog {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  serviceName String   @map("service_name")
+  endpoint    String
+  payload     String?  @db.Text
+  response    String?  @db.Text
+  status      Int
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, serviceName])
+  @@map("integration_logs")
 }

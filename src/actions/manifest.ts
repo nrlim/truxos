@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { manifestSchema } from "@/lib/validations/manifest";
 import { revalidatePath } from "next/cache";
+import { syncExpensesToAccuwrite } from "@/lib/integration";
 
 export async function getManifests(tenantId: string, page: number = 1, limit: number = 10, search?: string, status?: string) {
     const skip = (page - 1) * limit;
@@ -177,6 +178,17 @@ export async function completeManifest(manifestId: string, tenantId: string, new
             liters: e.liters ? Number(e.liters) : null,
             tenantId
         }));
+
+        // Integrasi Accuwrite: Synchronize Expenses
+        try {
+            await syncExpensesToAccuwrite(tenantId, expensesData, manifest.manifestNumber);
+        } catch (integrationError: any) {
+            if (integrationError.message.includes("403")) {
+                return { error: "Integrasi TruXos ke Accuwrite tidak diaktifkan (403 Forbidden)." };
+            }
+            // If other error, just log and continue or return error
+            console.error("Accuwrite Integration failed", integrationError);
+        }
 
         await prisma.$transaction([
             prisma.manifest.update({
