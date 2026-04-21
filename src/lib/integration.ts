@@ -12,118 +12,141 @@ export async function syncExpensesToAccuwrite(tenantId: string, expenses: any[],
         });
 
         if (!config || !config.isEnabled) {
-            // Not enabled, so we don't sync. We don't throw 403, we just skip it.
-            // Wait, the prompt says "Jika OFF, semua request API dari TruXos ke Accuwrite akan ditolak dengan error 403."
-            // It means if we tried to do it, it would fail. Let's just create a log.
             console.log("Integration is not enabled for tenant", tenantId);
-            throw new Error("403 Forbidden - Integration Disabled");
+            return { success: true, skipped: true };
+        }
+
+        if (expenses.length === 0) {
+            console.log(`No expenses to sync for manifest ${manifestNumber}. Skipping integration.`);
+            return { success: true, skipped: true };
         }
 
         const mappings = config.mappingJson ? JSON.parse(config.mappingJson) : {};
 
-        // fungsi mapToAccount(category)
-        const mapToAccount = (category: string) => {
-            return mappings[category] || null;
-        };
-
-        // As per documentation `api/v1/invoices/batch` requires `items` array with `idempotencyKey`, `sourceSys`, `contactId`, dll
-        const batchItems = expenses.map(expense => {
-            const accountId = mapToAccount(expense.category);
-            return {
-                idempotencyKey: `trx-exp-${manifestNumber}-${expense.id || Math.random().toString(36).substr(2, 9)}`,
-                sourceSys: "TruXos",
-                contactId: "ctc_00000000", // Needs actual contactId from Accuwrite? We'll provide a placeholder or skip if not strict
-                number: `${manifestNumber}-${expense.category.substring(0, 3)}`,
-                date: new Date().toISOString(), // Or from expense object
-                amount: Number(expense.amount),
-                category: expense.category, // Used as descriptive fallback or mapped account fallback
-                accountId: accountId, // Added for precise routing inside Accuwrite if permitted
-                description: `Beban ${expense.category} dari manifest ${manifestNumber}`
+        // Group by category to send final cost per category
+        const categoryTotals: Record<string, number> = {};
+        for (const exp of expenses) {
+            if (!categoryTotals[exp.category]) {
+                categoryTotals[exp.category] = 0;
             }
-        });
-
-        const payload = {
-            items: batchItems
-        };
-
-        const baseUrlVal = (config.baseUrl || "https://api.accuwrite.id").replace(/\/+$/, "");
-        // Clean URL construction
-        let endpoint = "";
-        if (baseUrlVal.includes("/api")) {
-            endpoint = `${baseUrlVal}/integrations/invoices/batch`;
-        } else {
-            // Check if it's high level domain or has /v1
-            endpoint = baseUrlVal.includes("/v1") 
-                ? baseUrlVal.replace("/v1", "/api/integrations/invoices/batch") 
-                : `${baseUrlVal}/api/integrations/invoices/batch`;
+            categoryTotals[exp.category] += Number(exp.amount);
         }
 
-        // Accuwrite requires Idempotency-Key header for the entire batch operation
-        const batchIdempotencyKey = `batch-${manifestNumber}-${Date.now()}`;
+        const categories = Object.keys(categoryTotals);
+
+        const baseUrlVal = (config.baseUrl || "https://api.accuwrite.id").replace(/\/+$/, "");
+        // Use the bulk expense creation endpoint
+        const endpoint = baseUrlVal.includes("/api") 
+            ? `${baseUrlVal.replace(/\/integrations.*/, "")}/integrations/expenses/bulk` 
+            : `${baseUrlVal}/api/integrations/expenses/bulk`;
+
+        const vendorEndpoint = baseUrlVal.includes("/api")
+            ? `${baseUrlVal.replace(/\/integrations.*/, "")}/integrations/vendors?search=truxos`
+            : `${baseUrlVal}/api/integrations/vendors?search=truxos`;
+
+        let vendorId = "vnd_truxos_default";
+        try {
+            const vendorRes = await fetch(vendorEndpoint, {
+                headers: {
+                    "X-Accuwrite-Api-Key": config.apiKey,
+                    "X-Accuwrite-Api-Secret": config.apiSecret || ""
+                }
+            });
+            if (vendorRes.ok) {
+                const vendorJson = await vendorRes.json();
+                if (vendorJson.status === "success" && vendorJson.data && vendorJson.data.length > 0) {
+                    vendorId = vendorJson.data[0].id;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch vendor", err);
+        }
 
         console.log(`Syncing to Accuwrite: ${endpoint} for manifest ${manifestNumber}`);
 
-        // Set a timeout to prevent hanging the entire UI if Accuwrite is slow
+        // Prepare bulk payload
+        const payload = categories.map((category) => {
+            const amount = categoryTotals[category];
+            const accountId = mappings[category] || null;
+
+            return {
+                sourceSys: "TruXos",
+                vendorId: vendorId,
+                number: `${manifestNumber}-${category.substring(0, 3)}`,
+                date: new Date().toISOString(),
+                category: category,
+                amount: amount,
+                accountId: accountId,
+                description: `Biaya Operasional ${category} - ${manifestNumber}`,
+                idempotencyKey: `trx-exp-${manifestNumber}-${category}`
+            };
+        });
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
         let responseData;
+        let resJson = {};
+        let status = 500;
+
         try {
             responseData = await fetch(endpoint, {
                 method: "POST",
                 headers: {
                     "X-Accuwrite-Api-Key": config.apiKey,
                     "X-Accuwrite-Api-Secret": config.apiSecret || "",
-                    "Idempotency-Key": batchIdempotencyKey,
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify(payload),
                 signal: controller.signal
             });
+            
+            status = responseData.status;
+            resJson = await responseData.json().catch(() => ({}));
+
+            await prisma.integrationLog.create({
+                data: {
+                    tenantId,
+                    serviceName: "TRUXOS",
+                    endpoint,
+                    payload: JSON.stringify(payload),
+                    response: JSON.stringify(resJson),
+                    status
+                }
+            });
+
+            // If 207 (partial success), we might have failed items
+            if (status === 207) {
+                const failedItems = (resJson as any).failed || [];
+                if (failedItems.length > 0) {
+                    throw new Error(`Integration failed for some items: ${failedItems[0].error}`);
+                }
+            } else if (!responseData.ok) {
+                throw new Error(`${status} API Error: ${(resJson as any).message || (resJson as any).error || "Failed to push"}`);
+            }
+        } catch (error: any) {
+            // Only log if it wasn't already logged (i.e. network error or timeout)
+            if (!responseData) {
+                await prisma.integrationLog.create({
+                    data: {
+                        tenantId,
+                        serviceName: "TRUXOS",
+                        endpoint,
+                        payload: JSON.stringify(payload),
+                        response: JSON.stringify({ error: error.message }),
+                        status: 500
+                    }
+                });
+            }
+            throw error;
         } finally {
             clearTimeout(timeoutId);
         }
-
-        const status = responseData.status;
-        const resJson = await responseData.json().catch(() => ({}));
-
-        if (!responseData.ok) {
-            throw new Error(`${status} API Error: ${resJson.message || resJson.error || "Failed to push"}`);
-        }
-
-        // We log successful sync:
-        await prisma.integrationLog.create({
-            data: {
-                tenantId,
-                serviceName: "TRUXOS",
-                endpoint,
-                payload: JSON.stringify(payload),
-                response: JSON.stringify(resJson),
-                status
-            }
-        });
 
         return { success: true };
 
     } catch (error: any) {
         console.error("Failed to sync expenses", error);
-
-        let endpointFallback = "https://accuwrite.vercel.app/api/integrations/expenses";
-
-        // Log the failure
-        await prisma.integrationLog.create({
-            data: {
-                tenantId,
-                serviceName: "TRUXOS",
-                endpoint: endpointFallback,
-                payload: JSON.stringify({ manifestNumber, error: error.message }),
-                response: JSON.stringify({ error: error.message }),
-                status: error.message.includes("403") ? 403 : 500
-            }
-        });
-
-        if (error.message.includes("403")) {
-            throw error; // Propagate the 403 based on prompt logic
-        }
+        throw error;
     }
 }

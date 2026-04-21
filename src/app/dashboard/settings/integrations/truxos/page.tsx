@@ -498,6 +498,7 @@ export default function TruxosIntegrationSettings() {
                                     <th scope="col" className="px-4 py-3">Endpoint</th>
                                     <th scope="col" className="px-4 py-3">Status</th>
                                     <th scope="col" className="px-4 py-3">Payload Preview</th>
+                                    <th scope="col" className="px-4 py-3">Response</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -516,9 +517,14 @@ export default function TruxosIntegrationSettings() {
                                                     {log.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 w-1/2">
-                                                <div className="truncate max-w-xs font-mono text-[11px] text-slate-400">
+                                            <td className="px-4 py-3 max-w-[200px]">
+                                                <div className="truncate font-mono text-[11px] text-slate-400" title={log.payload}>
                                                     {log.payload || "-"}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 max-w-[200px]">
+                                                <div className="truncate font-mono text-[11px] text-slate-400" title={log.response}>
+                                                    {log.response || "-"}
                                                 </div>
                                             </td>
                                         </tr>

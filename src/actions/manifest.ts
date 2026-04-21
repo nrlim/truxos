@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { manifestSchema } from "@/lib/validations/manifest";
 import { revalidatePath } from "next/cache";
 import { syncExpensesToAccuwrite } from "@/lib/integration";
+import { calculateEstimatedCost } from "@/lib/estimation";
 
 export async function getManifests(tenantId: string, page: number = 1, limit: number = 10, search?: string, status?: string) {
     const skip = (page - 1) * limit;
@@ -164,7 +165,7 @@ export async function completeManifest(manifestId: string, tenantId: string, new
     try {
         const manifest = await prisma.manifest.findUnique({
             where: { id: manifestId, tenantId },
-            include: { truck: true, route: true }
+            include: { truck: true, route: { include: { tolls: true } }, driver: true }
         });
 
         if (!manifest) return { error: "Manifest not found" };
@@ -179,15 +180,27 @@ export async function completeManifest(manifestId: string, tenantId: string, new
             tenantId
         }));
 
+        // Base operational costs
+        const estimation = calculateEstimatedCost({
+            route: manifest.route,
+            truck: manifest.truck,
+            driver: manifest.driver,
+            additionalDistanceKm: manifest.additionalDistanceKm
+        });
+
+        const allExpensesToSync = [
+            { id: "base-bbm", category: "BAHAN_BAKAR", amount: estimation.fuelCost, notes: `Estimasi BBM ${estimation.estimatedLiters.toFixed(1)}L`, tenantId },
+            { id: "base-tol", category: "TOL_PARKIR", amount: estimation.tollCost, notes: `Tol Rute ${manifest.route.origin} - ${manifest.route.destination}`, tenantId },
+            { id: "base-uang-jalan", category: "UANG_JALAN", amount: estimation.allowance, notes: `Uang Saku Supir (${manifest.driver.fullName})`, tenantId },
+            ...expensesData.map(e => ({ ...e, id: Date.now().toString() + Math.random().toString() }))
+        ];
+
         // Integrasi Accuwrite: Synchronize Expenses
         try {
-            await syncExpensesToAccuwrite(tenantId, expensesData, manifest.manifestNumber);
+            await syncExpensesToAccuwrite(tenantId, allExpensesToSync, manifest.manifestNumber);
         } catch (integrationError: any) {
-            if (integrationError.message.includes("403")) {
-                return { error: "Integrasi TruXos ke Accuwrite tidak diaktifkan (403 Forbidden)." };
-            }
-            // If other error, just log and continue or return error
             console.error("Accuwrite Integration failed", integrationError);
+            return { error: `Gagal sinkronisasi data ke Accuwrite: ${integrationError.message}. Transaksi dibatalkan.` };
         }
 
         await prisma.$transaction([
@@ -221,11 +234,42 @@ export async function verifyManifest(manifestId: string, tenantId: string) {
     try {
         const manifest = await prisma.manifest.findUnique({
             where: { id: manifestId, tenantId },
-            include: { truck: true, route: true }
+            include: { truck: true, route: { include: { tolls: true } }, driver: true, expenses: true }
         });
 
         if (!manifest) return { error: "Manifest not found" };
         if (manifest.status !== "NEEDS_FINAL_REVIEW") return { error: "Manifest is not pending review" };
+
+        const estimation = calculateEstimatedCost({
+            route: manifest.route,
+            truck: manifest.truck,
+            driver: manifest.driver,
+            additionalDistanceKm: manifest.additionalDistanceKm
+        });
+
+        const expensesData: any[] = [
+            { id: "base-bbm", category: "BAHAN_BAKAR", amount: estimation.fuelCost, notes: `Estimasi BBM ${estimation.estimatedLiters.toFixed(1)}L`, tenantId },
+            { id: "base-tol", category: "TOL_PARKIR", amount: estimation.tollCost, notes: `Tol Rute ${manifest.route.origin} - ${manifest.route.destination}`, tenantId },
+            { id: "base-uang-jalan", category: "UANG_JALAN", amount: estimation.allowance, notes: `Uang Saku Supir (${manifest.driver.fullName})`, tenantId }
+        ];
+
+        manifest.expenses.forEach(e => {
+            expensesData.push({
+                id: e.id,
+                category: e.category,
+                amount: Number(e.amount),
+                notes: e.notes,
+                attachment: e.attachment,
+                tenantId
+            });
+        });
+
+        try {
+            await syncExpensesToAccuwrite(tenantId, expensesData, manifest.manifestNumber);
+        } catch (integrationError: any) {
+            console.error("Accuwrite Integration failed", integrationError);
+            return { error: `Gagal sinkronisasi data ke Accuwrite: ${integrationError.message}. Transaksi dibatalkan.` };
+        }
 
         await prisma.$transaction([
             prisma.manifest.update({

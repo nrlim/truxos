@@ -77,15 +77,7 @@ export async function completeDriverManifest(manifestId: string, tenantId: strin
             tenantId
         }));
 
-        // Integrasi Accuwrite: Synchronize Expenses
-        try {
-            await syncExpensesToAccuwrite(tenantId, expensesData, manifest.manifestNumber);
-        } catch (integrationError: any) {
-            if (integrationError.message.includes("403")) {
-                return { error: "Integrasi TruXos ke Accuwrite tidak diaktifkan (403 Forbidden)." };
-            }
-            console.error("Accuwrite Integration failed", integrationError);
-        }
+        // Integration removed here: sync to Accuwrite will happen during verifyManifest by admin.
 
         await prisma.$transaction([
             prisma.postTripExpense.deleteMany({
