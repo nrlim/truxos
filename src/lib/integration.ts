@@ -46,27 +46,49 @@ export async function syncExpensesToAccuwrite(tenantId: string, expenses: any[],
             items: batchItems
         };
 
-        const baseUrlStr = (config.baseUrl || "https://api.accuwrite.id").replace(/\/+$/, "");
-        const urlObj = new URL(baseUrlStr.startsWith("http") ? baseUrlStr : "https://" + baseUrlStr);
-        const origin = urlObj.origin;
-        const endpoint = `${origin}/api/v1/invoices/batch`;
+        const baseUrlVal = (config.baseUrl || "https://api.accuwrite.id").replace(/\/+$/, "");
+        // Clean URL construction
+        let endpoint = "";
+        if (baseUrlVal.includes("/api")) {
+            endpoint = `${baseUrlVal}/integrations/invoices/batch`;
+        } else {
+            // Check if it's high level domain or has /v1
+            endpoint = baseUrlVal.includes("/v1") 
+                ? baseUrlVal.replace("/v1", "/api/integrations/invoices/batch") 
+                : `${baseUrlVal}/api/integrations/invoices/batch`;
+        }
 
-        // Real API Call to Accuwrite Batch Invoices
-        const responseData = await fetch(endpoint, {
-            method: "POST",
-            headers: {
-                "X-Accuwrite-Api-Key": config.apiKey,
-                "X-Accuwrite-Api-Secret": config.apiSecret || "",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
-        });
+        // Accuwrite requires Idempotency-Key header for the entire batch operation
+        const batchIdempotencyKey = `batch-${manifestNumber}-${Date.now()}`;
+
+        console.log(`Syncing to Accuwrite: ${endpoint} for manifest ${manifestNumber}`);
+
+        // Set a timeout to prevent hanging the entire UI if Accuwrite is slow
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+        let responseData;
+        try {
+            responseData = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "X-Accuwrite-Api-Key": config.apiKey,
+                    "X-Accuwrite-Api-Secret": config.apiSecret || "",
+                    "Idempotency-Key": batchIdempotencyKey,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         const status = responseData.status;
         const resJson = await responseData.json().catch(() => ({}));
 
         if (!responseData.ok) {
-            throw new Error(`${status} API Error: ${resJson.message || "Failed to push"}`);
+            throw new Error(`${status} API Error: ${resJson.message || resJson.error || "Failed to push"}`);
         }
 
         // We log successful sync:

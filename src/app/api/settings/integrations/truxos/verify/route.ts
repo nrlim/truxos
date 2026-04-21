@@ -28,14 +28,10 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Integrasi TruXos saat ini dinonaktifkan" }, { status: 403 });
         }
 
-        let baseUrlStr = config.baseUrl;
-        if (!baseUrlStr.startsWith("http")) {
-            baseUrlStr = "https://" + baseUrlStr;
-        }
-
-        const urlObj = new URL(baseUrlStr);
-        const origin = urlObj.origin;
-        const endpoint = `${origin}/api/v1/verify`;
+        const baseUrlVal = config.baseUrl.replace(/\/+$/, "");
+        // If baseUrl already contains /api, we use it as is, otherwise we append it.
+        const effectiveBase = baseUrlVal.includes("/api") ? baseUrlVal : `${baseUrlVal}/api`;
+        const endpoint = `${effectiveBase}/v1/verify`;
 
         const response = await fetch(endpoint, {
             method: "GET",
